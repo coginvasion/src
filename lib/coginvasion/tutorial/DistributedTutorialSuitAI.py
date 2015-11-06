@@ -153,6 +153,5 @@ class DistributedTutorialSuitAI(DistributedSuitAI):
         elif self.tutPartIndex == 1:
             self.createPath()
         elif self.tutPartIndex == 2:
-            print 'doing part 3 stuff'
             self.createPath()
             self.startAttacks()

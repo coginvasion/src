@@ -446,9 +446,8 @@ class DistributedToonAI(DistributedAvatarAI, DistributedSmoothNodeAI, ToonDNA.To
         obj = self.air.doId2do.get(avId, None)
         gag = self.gagMgr.getGagByName(GagGlobals.getGagByID(gag_id))
         dmg = gag.getDamage()
-        if obj and not obj.isDead():
+        if obj:
             obj.b_setHealth(obj.getHealth() - dmg)
-            obj.d_announceHealth(0, dmg)
             if obj.getHealth() <= 0:
                 if gag.getType() == GagType.THROW or gag.getName() == CIGlobals.TNT:
                     obj.b_setAnimState('pie')

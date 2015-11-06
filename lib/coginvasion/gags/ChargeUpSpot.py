@@ -70,8 +70,11 @@ class ChargeUpSpot(LocationSeeker):
         tickTrack = Parallel()
         tickDuration = 0.4
         for cog in self.selectedCogs:
-            base.audio3d.attachSoundToObject(self.tickSfx, cog)
-            tickTrack.append(Parallel(Sequence(LerpColorScaleInterval(cog, tickDuration, VBase4(1, 0, 0, 1)), Func(cog.clearColorScale), Func(cog.d_disableMovement)), SoundInterval(self.tickSfx, duration=tickDuration)))
+            if not cog.isDead():
+                base.audio3d.attachSoundToObject(self.tickSfx, cog)
+                tickTrack.append(Parallel(Sequence(LerpColorScaleInterval(cog, tickDuration, VBase4(1, 0, 0, 1)), Func(cog.clearColorScale), Func(cog.d_disableMovement)), SoundInterval(self.tickSfx, duration=tickDuration)))
+            else:
+                self.selectedCogs.remove(cog)
 
         return tickTrack
 

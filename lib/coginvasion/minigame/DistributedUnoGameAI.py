@@ -503,6 +503,12 @@ class DistributedUnoGameAI(DistributedMinigameAI.DistributedMinigameAI):
         return
 
     def delete(self):
+        try:
+            self.DistributedUnoGameAI_deleted
+            return
+        except:
+            self.DistributedUnoGameAI_deleted = 1
+
         DistributedMinigameAI.DistributedMinigameAI.delete(self)
         if self.turnSeq:
             self.turnSeq.pause()

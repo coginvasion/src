@@ -53,6 +53,9 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
         self.healthChangeEvent = SuitGlobals.healthChangeEvent
         self.animStateChangeEvent = SuitGlobals.animStateChangeEvent
         self.requestedBehaviors = []
+        self.deathAnim = None
+        self.deathTimeLeft = 0
+        self.deathTaskName = None
         return
 
     def b_setSuit(self, plan, variant = 0):
@@ -194,6 +197,8 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
         prevHealth = self.health
         DistributedAvatarAI.setHealth(self, health)
         messenger.send(self.healthChangeEvent, [health, prevHealth])
+        if not self.isDead() or self.isDead() and self.deathTimeLeft > 0:
+            self.d_announceHealth(0, prevHealth - self.health)
 
     def monitorHealth(self, task):
         if self.health <= 0:
@@ -205,13 +210,28 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
             currentAnim = SuitGlobals.getAnimByName(self.anim)
             self.clearTrack()
             if currentAnim:
-                self.track = Sequence(Wait(currentAnim.getDeathHoldTime()), Func(self.killSuit))
-                self.track.start()
+                if not self.deathAnim:
+                    self.deathAnim = currentAnim
+                    self.deathTimeLeft = currentAnim.getDeathHoldTime()
+                    self.deathTaskName = self.uniqueName('__handleDeath')
+                    taskMgr.doMethodLater(1, self.__handleDeath, name=self.deathTaskName)
+                else:
+                    taskMgr.remove(self.deathTaskName)
+                    delayTime = currentAnim.getDeathHoldTime()
+                    self.deathTimeLeft = delayTime / 2
+                    taskMgr.doMethodLater(1, self.__handleDeath, name=self.deathTaskName)
             else:
                 self.killSuit()
             return Task.done
         else:
             return Task.cont
+
+    def __handleDeath(self, task):
+        self.deathTimeLeft -= 1
+        if self.deathTimeLeft <= 0:
+            self.killSuit()
+            return Task.done
+        return Task.again
 
     def handleAvatarDefeat(self, av):
         if av.isDead() and hasattr(self, 'brain'):
@@ -263,7 +283,6 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
 
     def killSuit(self):
         if self.level > 0 and self.health <= 0:
-            print self.health
             self.b_setAnimState('die')
             self.clearTrack()
             self.track = Sequence(Wait(6.0), Func(self.closeSuit))
@@ -360,6 +379,8 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
         self.healthChangeEvent = None
         self.animStateChangeEvent = None
         self.requestedBehaviors = None
+        self.deathAnim = None
+        self.deathTimeLeft = None
         return
 
     def delete(self):
@@ -383,6 +404,8 @@ class DistributedSuitAI(DistributedAvatarAI, DistributedSmoothNodeAI):
         del self.animStateChangeEvent
         del self.requestedBehaviors
         del self.track
+        del self.deathAnim
+        del self.deathTimeLeft
         DistributedAvatarAI.delete(self)
         DistributedSmoothNodeAI.delete(self)
 

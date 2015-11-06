@@ -13,3 +13,7 @@ for dirName, subdirList, fileList in os.walk('.'):
         if path.endswith('pyc_dis'):
             print 'Renaming %s' % path
             os.rename(path, path[:-5])
+        
+        if path.endswith('pyc'):
+            print 'Removing %s' % path
+            os.remove(path)
