@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.login.AvChooser
 """
-  
+
   Filename: AvChooser.py
   Created by: blach (10Nov14)
-  
+
 """
 from direct.distributed.PyDatagram import PyDatagram
 from direct.directnotify.DirectNotifyGlobal import directNotify
@@ -13,6 +13,7 @@ from direct.fsm.StateData import StateData
 from lib.coginvasion.distributed.CogInvasionMsgTypes import *
 from lib.coginvasion.gui.PickAToon import PickAToon
 from AvChoice import AvChoice
+from CharSelection import CharSelection
 
 class AvChooser(StateData):
     notify = directNotify.newCategory('AvChooser')
@@ -26,8 +27,9 @@ class AvChooser(StateData):
         self.avChooseFSM.enterInitialState()
         self.parentFSM = parentFSM
         self.parentFSM.getStateNamed('avChoose').addChild(self.avChooseFSM)
-        self.pickAToon = PickAToon(self)
+        self.pickAToon = None
         self.setAvatarsNone()
+        return
 
     def enter(self):
         StateData.enter(self)
@@ -67,7 +69,8 @@ class AvChooser(StateData):
         self.ignore(base.cr.csm.getSetAvatarsEvent())
 
     def enterAvChoose(self):
-        self.pickAToon.createGui()
+        self.pickAToon = CharSelection(self)
+        self.pickAToon.load()
 
     def enterWaitForToonDelResponse(self, avId):
         self.acceptOnce(base.cr.csm.getToonDeletedEvent(), self.handleDeleteToonResp)
@@ -105,4 +108,6 @@ class AvChooser(StateData):
         base.cr.loginFSM.request('avChoose')
 
     def exitAvChoose(self):
-        self.pickAToon.removeGui()
+        self.pickAToon.unload()
+        self.pickAToon = None
+        return

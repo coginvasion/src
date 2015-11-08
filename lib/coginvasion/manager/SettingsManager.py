@@ -3,7 +3,7 @@
 
   Filename: SettingsManager.py
   Created by: blach (??July14)
-  
+
 """
 from panda3d.core import *
 from pandac.PandaModules import *
@@ -15,7 +15,7 @@ class SettingsManager:
 
     def applySettings(self, jsonfile):
         if not jsonfile:
-            raise StandardError('no file specified!')
+            raise IOError('no file specified!')
         info = open(jsonfile)
         jsonInfo = json.load(info)
         settings = jsonInfo['settings']
@@ -35,8 +35,6 @@ class SettingsManager:
             render.set_antialias(AntialiasAttrib.MMultisample)
             aspect2d.set_antialias(AntialiasAttrib.MMultisample)
         else:
-            loadPrcFileData('', 'framebuffer-multisample 0')
-            loadPrcFileData('', 'multisamples 0')
             render.clear_antialias()
         ts = TextureStage('ts')
         if tex_detail == 'high':
@@ -49,6 +47,12 @@ class SettingsManager:
         base.win.requestProperties(wp)
         info.close()
         return
+
+    def maybeFixAA(self):
+        if self.getSettings('settings.json')[7] != 'on':
+            print 'Fixing anti-aliasing...'
+            loadPrcFileData('', 'framebuffer-multisample 0')
+            loadPrcFileData('', 'multisamples 0')
 
     def getSettings(self, jsonfile):
         if jsonfile:

@@ -4,7 +4,7 @@
   Filename: ToonHead.py
   Created by: blach (??July14)
   Remade: (28Oct14)
-  
+
 """
 from panda3d.core import *
 from lib.coginvasion.globals import CIGlobals
@@ -14,6 +14,7 @@ from direct.actor import Actor
 import random
 
 class ToonHead(Actor.Actor):
+    notify = directNotify.newCategory('ToonHead')
     EyesOpen = loader.loadTexture('phase_3/maps/eyes.jpg', 'phase_3/maps/eyes_a.rgb')
     EyesOpen.setMinfilter(Texture.FTLinear)
     EyesOpen.setMagfilter(Texture.FTLinear)
@@ -41,10 +42,18 @@ class ToonHead(Actor.Actor):
         self.gender = None
         self.__eyelashOpened = None
         self.__eyelashClosed = None
+        self.__eyes = None
+        self.__lpupil = None
+        self.__rpupil = None
         self.pupils = []
+        self.blinkTaskName = 'blinkTask' + str(id(self))
+        self.doBlinkTaskName = 'doBlink' + str(id(self))
+        self.lookAroundTaskName = 'lookAroundTask' + str(id(self))
+        self.doLookAroundTaskName = 'doLookAround' + str(id(self))
+        self.openEyesTaskName = 'openEyes' + str(id(self))
         return
 
-    def generateHead(self, gender, head, headtype):
+    def generateHead(self, gender, head, headtype, forGui = 0):
 
         def stashMuzzles(length, stashNeutral = 0):
             if stashNeutral:
@@ -95,7 +104,22 @@ class ToonHead(Actor.Actor):
              'swim': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_swim.bam',
              'toss': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_toss.bam',
              'cringe': 'phase_3.5/models/char/tt_a_chr_' + headtype + '_head_cringe.bam',
-             'conked': 'phase_3.5/models/char/tt_a_chr_' + headtype + '_head_conked.bam'}, 'head')
+             'conked': 'phase_3.5/models/char/tt_a_chr_' + headtype + '_head_conked.bam',
+             'catchneutral': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_gameneutral.bam',
+             'catchrun': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_gamerun.bam',
+             'hold-bottle': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_hold-bottle.bam',
+             'push-button': 'phase_3.5/models/char/tt_a_chr_' + headtype + '_head_press-button.bam',
+             'happy-dance': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_happy-dance.bam',
+             'juggle': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_juggle.bam',
+             'shout': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_shout.bam',
+             'dneutral': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_sad-neutral.bam',
+             'dwalk': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_losewalk.bam',
+             'smooch': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_smooch.bam',
+             'conked': 'phase_3.5/models/char/tt_a_chr_' + headtype + '_head_conked.bam',
+             'sound': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_shout.bam',
+             'sprinkle-dust': 'phase_5/models/char/tt_a_chr_' + headtype + '_head_sprinkle-dust.bam',
+             'start-sit': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_intoSit.bam',
+             'sit': 'phase_4/models/char/tt_a_chr_' + headtype + '_head_sit.bam'}, 'head')
             _pupilL = self.findAllMatches('**/def_left_pupil')
             _pupilR = self.findAllMatches('**/def_right_pupil')
         if headtype == '1':
@@ -141,15 +165,40 @@ class ToonHead(Actor.Actor):
             _pupilR = self.findAllMatches('**/joint_pupilR_long')
         self.pupils.append(_pupilL)
         self.pupils.append(_pupilR)
+        if forGui:
+            self.guiFix()
         if self.gender == 'girl':
             self.setupEyelashes()
 
     def guiFix(self):
-        self.drawInFront('eyes*', 'head-front*', -2)
-        if not self.find('joint_pupil*').isEmpty():
-            self.drawInFront('joint_pupil*', 'eyes*', -1)
-        else:
-            self.drawInFront('def_*_pupil', 'eyes*', -1)
+        """
+        self.__eyes = self.find('**/eyes*')
+        if not self.__eyes.isEmpty():
+            self.__eyes.setColorOff()
+            self.__lpupil = None
+            self.__rpupil = None
+            lp = self.pupils[0]
+            rp = self.pupils[1]
+            leye = self.__eyes.attachNewNode('leye')
+            reye = self.__eyes.attachNewNode('reye')
+            lmat = Mat4(0.802174, 0.59709, 0, 0, -0.586191, 0.787531, 0.190197, 0, 0.113565, -0.152571, 0.981746, 0, -0.233634, 0.418062, 0.0196875, 1)
+            leye.setMat(lmat)
+            rmat = Mat4(0.786788, -0.617224, 0, 0, 0.602836, 0.768447, 0.214658, 0, -0.132492, -0.16889, 0.976689, 0, 0.233634, 0.418062, 0.0196875, 1)
+            reye.setMat(rmat)
+            self.__lpupil = leye.attachNewNode('lpupil')
+            self.__rpupil = reye.attachNewNode('rpupil')
+            lpt = self.__eyes.attachNewNode('')
+            rpt = self.__eyes.attachNewNode('')
+            lpt.wrtReparentTo(self.__lpupil)
+            rpt.wrtReparentTo(self.__rpupil)
+            lp.reparentTo(lpt)
+            rp.reparentTo(rpt)
+            self.__lpupil.adjustAllPriorities(1)
+            self.__rpupil.adjustAllPriorities(1)
+            self.__lpupil.flattenStrong()
+            self.__rpupil.flattenStrong()
+        """
+        pass
 
     def setupEyelashes(self):
         head = self.getPart('head')
@@ -181,22 +230,22 @@ class ToonHead(Actor.Actor):
 
     def startBlink(self):
         randomStart = random.uniform(0.5, 7)
-        taskMgr.doMethodLater(randomStart, self.blinkTask, self.cr.uniqueName('blinkTask'))
+        taskMgr.doMethodLater(randomStart, self.blinkTask, self.blinkTaskName)
 
     def stopBlink(self):
-        taskMgr.remove(self.cr.uniqueName('blinkTask'))
-        taskMgr.remove(self.cr.uniqueName('doBlink'))
-        taskMgr.remove(self.cr.uniqueName('openEyes'))
+        taskMgr.remove(self.blinkTaskName)
+        taskMgr.remove(self.doBlinkTaskName)
+        taskMgr.remove(self.openEyesTaskName)
 
     def blinkTask(self, task):
-        taskMgr.add(self.doBlink, self.cr.uniqueName('doBlink'))
+        taskMgr.add(self.doBlink, self.doBlinkTaskName)
         delay = random.uniform(0.5, 7)
         task.delayTime = delay
         return task.again
 
     def doBlink(self, task):
         self.closeEyes()
-        taskMgr.doMethodLater(0.2, self.doOpenEyes, self.cr.uniqueName('openEyes'))
+        taskMgr.doMethodLater(0.15, self.doOpenEyes, self.openEyesTaskName)
         return task.done
 
     def doOpenEyes(self, task):
@@ -257,14 +306,14 @@ class ToonHead(Actor.Actor):
 
     def startLookAround(self):
         delay = random.randint(3, 15)
-        taskMgr.doMethodLater(delay, self.lookAroundTask, self.cr.uniqueName('lookAroundTask'))
+        taskMgr.doMethodLater(delay, self.lookAroundTask, self.lookAroundTaskName)
 
     def stopLookAround(self):
-        taskMgr.remove(self.cr.uniqueName('lookAroundTask'))
-        taskMgr.remove(self.cr.uniqueName('doLookAround'))
+        taskMgr.remove(self.lookAroundTaskName)
+        taskMgr.remove(self.doLookAroundTaskName)
 
     def lookAroundTask(self, task):
-        taskMgr.add(self.doLookAround, self.cr.uniqueName('doLookAround'))
+        taskMgr.add(self.doLookAround, self.doLookAroundTaskName)
         delay = random.uniform(3, 10)
         task.delayTime = delay
         return task.again
@@ -272,10 +321,12 @@ class ToonHead(Actor.Actor):
     def doLookAround(self, task):
         hpr = self.findSomethingToLookAt()
         h, p, r = hpr
-        if not hpr:
+        if not hpr or not hasattr(base, 'localAvatar'):
             return task.done
-        messenger.send('gotLookSpot', [hpr])
-        self.lerpLookAt(self.getPart('head'), hpr)
+        if hasattr(self, 'doId') and self.doId == base.localAvatar.doId:
+            self.b_lookAtObject(h, p, r, blink=1)
+        else:
+            self.lerpLookAt(self.getPart('head'), hpr)
         return task.done
 
     def findSomethingToLookAt(self):
@@ -299,7 +350,10 @@ class ToonHead(Actor.Actor):
             startP = self.getPart('head').getP()
             startR = self.getPart('head').getR()
             toon = random.randint(0, len(toons) - 1)
-            self.getPart('head').lookAt(toons[toon], 0, 0, -0.75)
+            if toons[toon]:
+                self.getPart('head').lookAt(toons[toon], 0, 0, -0.75)
+            else:
+                self.notify.warning('toons[toon] is None -- I cannot look at nothing.')
             endH = self.getPart('head').getH()
             endP = self.getPart('head').getP()
             endR = self.getPart('head').getR()
@@ -340,8 +394,11 @@ class ToonHead(Actor.Actor):
             self.ToonHead_deleted = 1
             self.stopBlink()
             self.stopLookAround()
-            Actor.Actor.cleanup(self)
-            Actor.Actor.delete(self)
+            del self.blinkTaskName
+            del self.doBlinkTaskName
+            del self.lookAroundTaskName
+            del self.doLookAroundTaskName
+            del self.openEyesTaskName
             self.gender = None
             self.head = None
             self.headtype = None

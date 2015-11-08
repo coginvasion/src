@@ -182,7 +182,7 @@ class OptionPage(StateData):
         self.fsm.request('basePage')
 
     def enterBasePage(self):
-        self.book.createPageButtons(None, 'zonePage')
+        self.book.createPageButtons(None, 'districtPage')
         self.book.setTitle('Options')
         width, height, fs, music, sfx, tex_detail, model_detail, aa, af = SettingsManager().getSettings('settings.json')
         if music:

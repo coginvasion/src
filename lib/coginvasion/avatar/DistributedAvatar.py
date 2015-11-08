@@ -2,7 +2,7 @@
 """
 
   Filename: DistributedAvatar.py
-  Created by: blach (2Nov14)
+  Created by: blach (02Nov14)
 
 """
 from panda3d.core import *
@@ -30,10 +30,17 @@ class DistributedAvatar(DistributedActor, Avatar):
         self.healthLabel = None
         self.healthLabelTrack = None
         self.place = 0
+        self.hood = None
         return
 
+    def setHood(self, hood):
+        self.hood = hood
+
+    def getHood(self):
+        return self.hood
+
     def setupHealthLabel(self):
-        self.healthLabel = DirectLabel(text='', text_fg=CIGlobals.PositiveTextColor, scale=0.5, relief=None, text_decal=True, text_font=CIGlobals.getMickeyFont(), text_align=TextNode.ACenter)
+        self.healthLabel = DirectLabel(text='', text_fg=CIGlobals.PositiveTextColor, scale=0.75, relief=None, text_decal=True, text_font=CIGlobals.getMickeyFont(), text_align=TextNode.ACenter)
         self.healthLabel.reparentTo(self)
         self.healthLabel.setBillboardPointEye()
         self.healthLabel.stash()
@@ -42,7 +49,10 @@ class DistributedAvatar(DistributedActor, Avatar):
     def showAndMoveHealthLabel(self):
         self.unstashHpLabel()
         self.stopMovingHealthLabel()
-        moveTrack = LerpPosInterval(self.healthLabel, duration=0.5, pos=self.tag.getPos(self) + (0, 0, 0.5), startPos=self.tag.getPos(self) - (0, 0, 2), blendType='easeOut')
+        x = self.getNameTag().getX()
+        y = self.getNameTag().getY()
+        z = self.getNameTag().getZ()
+        moveTrack = LerpPosInterval(self.healthLabel, duration=0.5, pos=(x, y, z + 0.5), startPos=(x, y, z - 2), blendType='easeOut')
         self.healthLabelTrack = Sequence(moveTrack, Wait(1.0), Func(self.stashHpLabel))
         self.healthLabelTrack.start()
 
@@ -103,6 +113,7 @@ class DistributedAvatar(DistributedActor, Avatar):
 
     def announceGenerate(self):
         DistributedActor.announceGenerate(self)
+        self.setPythonTag('avatar', self.doId)
         self.setupHealthLabel()
         self.setParent(CIGlobals.SPHidden)
 
@@ -120,4 +131,6 @@ class DistributedAvatar(DistributedActor, Avatar):
         self.maxHealth = None
         self.healthLabel = None
         self.healthLabelTrack = None
+        self.hood = None
+        self.place = None
         return

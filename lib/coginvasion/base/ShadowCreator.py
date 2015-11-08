@@ -2,7 +2,7 @@
 """
 
   Filename: ShadowCreator.py
-  Created by: blach (6Apr15)
+  Created by: blach (06Apr15)
 
 """
 from pandac.PandaModules import BitMask32, NodePath

@@ -15,11 +15,11 @@ class Logger:
         self.orig = orig
         self.log = log
 
-    def write(self, str):
-        self.log.write(str)
+    def write(self, string):
+        self.log.write(string)
         self.log.flush()
         try:
-            self.orig.write(str)
+            self.orig.write(string)
             self.orig.flush()
         except:
             pass

@@ -22,8 +22,6 @@ class SkyUtil:
             self.cloud2_int = sky.find('**/cloud2').hprInterval(360, Vec3(-60, 0, 0))
             self.cloud1_int.loop()
             self.cloud2_int.loop()
-        else:
-            self.notify.warning("invalid sky model! Use 'TT_sky.bam' instead.")
 
     def stopSky(self):
         if hasattr(self, 'cloud1_int'):

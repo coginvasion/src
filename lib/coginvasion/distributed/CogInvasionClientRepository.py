@@ -2,8 +2,8 @@
 """
 
   Filename: CogInvasionClientRepository.py
-  Created by: blach (7Nov14)
-  
+  Created by: blach (07Nov14)
+
 """
 from panda3d.core import *
 from lib.coginvasion.gui.Dialog import *
@@ -16,6 +16,7 @@ from direct.distributed.MsgTypes import *
 from direct.distributed.PyDatagram import PyDatagram
 from direct.distributed.PyDatagramIterator import PyDatagramIterator
 from direct.interval.IntervalGlobal import *
+from direct.showbase.Audio3DManager import Audio3DManager
 from CogInvasionDoGlobals import *
 from direct.task import Task
 from pandac.PandaModules import UniqueIdAllocator
@@ -25,6 +26,8 @@ from lib.coginvasion.distributed.PlayGame import PlayGame
 from lib.coginvasion.distributed.HoodMgr import HoodMgr
 from lib.coginvasion.toon import LocalToon
 from lib.coginvasion.base.EnterLoad import EnterLoad
+from lib.coginvasion.hood.QuietZoneState import QuietZoneState
+from lib.coginvasion.hood import ZoneUtil
 from direct.distributed import DistributedSmoothNode
 from CogInvasionErrorCodes import *
 from lib.coginvasion.base import SpeedHackChecker
@@ -64,12 +67,14 @@ class CogInvasionClientRepository(AstronClientRepository):
          State('waitForShardList', self.enterWaitForShardList, self.exitWaitForShardList),
          State('ejected', self.enterEjected, self.exitEjected),
          State('districtReset', self.enterDistrictReset, self.exitDistrictReset),
-         State('died', self.enterDied, self.exitDied)], 'off', 'off')
+         State('died', self.enterDied, self.exitDied),
+         State('betaInform', self.enterBetaInform, self.exitBetaInform)], 'off', 'off')
         self.loginFSM.enterInitialState()
         self.gameFSM = ClassicFSM('game', [State('off', self.enterGameOff, self.exitGameOff),
          State('waitForGameEnterResponse', self.enterWaitForGameEnterResponse, self.exitWaitForGameEnterResponse),
          State('playGame', self.enterPlayGame, self.exitPlayGame),
-         State('closeShard', self.enterCloseShard, self.exitCloseShard)], 'off', 'off')
+         State('closeShard', self.enterCloseShard, self.exitCloseShard),
+         State('switchShards', self.enterSwitchShards, self.exitSwitchShards)], 'off', 'off')
         self.gameFSM.enterInitialState()
         self.avChooser = AvChooser(self.loginFSM)
         self.playGame = PlayGame(self.gameFSM, 'playGameDone')
@@ -77,7 +82,7 @@ class CogInvasionClientRepository(AstronClientRepository):
         self.makeAToon = MakeAToon()
         self.loginToken = os.environ.get('LOGIN_TOKEN')
         self.serverAddress = os.environ.get('GAME_SERVER')
-        self.serverURL = URLSpec('http://%s' % self.serverAddress)
+        self.serverURL = URLSpec('s://%s' % self.serverAddress)
         self.parentMgr.registerParent(CIGlobals.SPRender, render)
         self.parentMgr.registerParent(CIGlobals.SPHidden, hidden)
         self.adminAccess = False
@@ -97,8 +102,16 @@ class CogInvasionClientRepository(AstronClientRepository):
         self.shardListHandle = None
         self.uberZoneInterest = None
         self.isShowingPlayerIds = False
+        self.doBetaInform = True
+        self.dTutorial = None
+        self.checkHttp()
+        self.http.addPreapprovedServerCertificateFilename(self.serverURL, Filename('phase_3/etc/gameserver.crt'))
+        base.audio3d = Audio3DManager(base.sfxManagerList[0], camera)
+        base.audio3d.setDistanceFactor(25)
+        base.audio3d.setDropOffFactor(0.025)
         self.accountName = os.environ.get('ACCOUNT_NAME', '')
         self.csm = self.generateGlobalObject(DO_ID_CLIENT_SERVICES_MANAGER, 'ClientServicesManager')
+        self.friendsManager = self.generateGlobalObject(DO_ID_FRIENDS_MANAGER, 'FriendsManager')
         SpeedHackChecker.startChecking()
         self.loginFSM.request('connect')
         return
@@ -184,6 +197,42 @@ class CogInvasionClientRepository(AstronClientRepository):
             self._sendNextSetZone()
         return
 
+    def enterSwitchShards(self, shardId, hoodId, zoneId, avId):
+        self._switchShardParams = [shardId,
+         hoodId,
+         zoneId,
+         avId]
+        self.removeShardInterest(self._handleOldShardGone)
+
+    def _handleOldShardGone(self):
+        status = {}
+        status['hoodId'] = self._switchShardParams[1]
+        status['zoneId'] = self._switchShardParams[2]
+        status['avId'] = self._switchShardParams[3]
+        print status['avId']
+        self.gameFSM.request('waitForGameEnterResponse', [status, self._switchShardParams[0]])
+
+    def exitSwitchShards(self):
+        del self._switchShardParams
+
+    def enterBetaInform(self):
+        msg = 'There may be some features that are present in the game, but are neither finished nor fully functional yet.\n\nAre you sure you want to enter?'
+        self.dialog = GlobalDialog(message=msg, style=1, doneEvent='gameEnterChoice')
+        self.dialog.show()
+        self.acceptOnce('gameEnterChoice', self.handleGameEnterChoice)
+
+    def handleGameEnterChoice(self):
+        value = self.dialog.getValue()
+        if value:
+            self.loginFSM.request('avChoose')
+        else:
+            sys.exit()
+
+    def exitBetaInform(self):
+        self.ignore('gameEnterChoice')
+        self.dialog.cleanup()
+        del self.dialog
+
     def enterCloseShard(self, nextState = 'avChoose'):
         self.setNoNewInterests(True)
         self._removeLocalAvFromStateServer(nextState)
@@ -267,7 +316,7 @@ class CogInvasionClientRepository(AstronClientRepository):
             obj = self.doId2do[doId]
             if hasattr(base, 'localAvatar'):
                 if doId != base.localAvatar.doId:
-                    if obj.__class__.__name__ not in ('ClientServicesManager', 'DistributedDistrict'):
+                    if obj.__class__.__name__ not in ('ClientServicesManager', 'DistributedDistrict', 'FriendsManager'):
                         self.deleteObject(doId)
             else:
                 self.deleteObject(doId)
@@ -367,10 +416,13 @@ class CogInvasionClientRepository(AstronClientRepository):
         self.avChooser.load()
         self.avChooser.enter()
         if not self.music:
-            self.music = base.loadMusic(CIGlobals.ThemeSong)
+            self.music = base.loadMusic(CIGlobals.getThemeSong())
             base.playMusic(self.music, volume=0.75, looping=1)
-        self.accept('enterMakeAToon', self.loginFSM.request, ['makeAToon'])
+        self.accept('enterMakeAToon', self.__handleMakeAToonReq)
         self.accept('avChooseDone', self.__handleAvChooseDone)
+
+    def __handleMakeAToonReq(self, slot):
+        self.loginFSM.request('makeAToon', [slot])
 
     def __handleAvChooseDone(self, avChoice):
         print '------- AvChooseDone -------'
@@ -392,8 +444,12 @@ class CogInvasionClientRepository(AstronClientRepository):
             AstronClientRepository.handleDatagram(self, di)
 
     def enterPlayingGame(self):
-        status = {'hoodId': CIGlobals.MinigameArea,
-         'zoneId': CIGlobals.MinigameAreaId,
+        zoneId = localAvatar.getLastHood()
+        print 'Going to {0}'.format(zoneId)
+        hoodId = ZoneUtil.getHoodId(zoneId)
+        print 'Hood {0}'.format(hoodId)
+        status = {'hoodId': hoodId,
+         'zoneId': zoneId,
          'avId': self.localAvId}
         shardId = self.myDistrict.doId
         self.gameFSM.request('waitForGameEnterResponse', [status, shardId])
@@ -437,7 +493,10 @@ class CogInvasionClientRepository(AstronClientRepository):
     def _handleShardListComplete(self):
         if self._shardsAreAvailable():
             self.myDistrict = self._chooseAShard()
-            self.loginFSM.request('avChoose')
+            if self.doBetaInform:
+                self.loginFSM.request('betaInform')
+            else:
+                self.loginFSM.request('avChoose')
             taskMgr.add(self.monitorDistrict, 'monitorMyDistrict')
         else:
             self.loginFSM.request('noShards')
@@ -556,8 +615,7 @@ class CogInvasionClientRepository(AstronClientRepository):
             return
         self.gameFSM.request('playGame', [status])
 
-    def enterMakeAToon(self):
-        slot = self.avChooser.pickAToon.slot
+    def enterMakeAToon(self, slot):
         if self.music:
             self.music.stop()
             self.music = None
@@ -582,11 +640,11 @@ class CogInvasionClientRepository(AstronClientRepository):
         self.ignore('createAToonFinished')
         return
 
-    def enterSubmitNewToon(self, dnaStrand, slot, name):
+    def enterSubmitNewToon(self, dnaStrand, slot, name, skipTutorial = 0):
         self.submittingDialog = GlobalDialog(message=CIGlobals.Submitting)
         self.submittingDialog.show()
         self.acceptOnce(self.csm.getToonCreatedEvent(), self.__handleSubmitNewToonResp)
-        self.csm.sendSubmitNewToon(dnaStrand, slot, name)
+        self.csm.sendSubmitNewToon(dnaStrand, slot, name, skipTutorial)
 
     def __handleSubmitNewToonResp(self, avId):
         self.loginFSM.request('avChoose')
@@ -611,15 +669,36 @@ class CogInvasionClientRepository(AstronClientRepository):
             self.notify.error('called enterPlayGame() without self.localAvChoice being set!')
             return
         else:
-            zoneId = status['zoneId']
-            hoodId = status['hoodId']
-            avId = status['avId']
-            self.playGame.load()
-            self.playGame.enter(hoodId, zoneId, avId)
+            if localAvatar.getTutorialCompleted() == 1:
+                zoneId = status['zoneId']
+                hoodId = status['hoodId']
+                avId = status['avId']
+                self.playGame.load()
+                self.playGame.enter(hoodId, zoneId, avId)
+            else:
+                self.sendQuietZoneRequest()
+                localAvatar.sendUpdate('createTutorial')
             self.myDistrict.d_joining()
             return
 
+    def tutorialCreated(self, zoneId):
+        requestStatus = {'zoneId': zoneId}
+        self.tutQuietZoneState = QuietZoneState('tutQuietZoneDone')
+        self.tutQuietZoneState.load()
+        self.tutQuietZoneState.enter(requestStatus)
+        self.acceptOnce('tutQuietZoneDone', self.__handleTutQuietZoneDone)
+
+    def __handleTutQuietZoneDone(self):
+        self.tutQuietZoneState.exit()
+        self.tutQuietZoneState.unload()
+        del self.tutQuietZoneState
+
     def exitPlayGame(self):
+        self.ignore('tutQuietZoneDone')
+        if hasattr(self, 'tutQuietZoneDone'):
+            self.tutQuietZoneState.exit()
+            self.tutQuietZoneState.unload()
+            del self.tutQuietZoneState
         if self.music:
             self.music.stop()
             self.music = None

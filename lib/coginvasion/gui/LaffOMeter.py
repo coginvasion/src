@@ -3,7 +3,7 @@
 
   Filename: LaffOMeter.py
   Created by: blach (??July14)
-  
+
 """
 from lib.coginvasion.globals import CIGlobals
 from direct.gui.DirectGui import *
@@ -15,11 +15,14 @@ notify = DirectNotify().newCategory('LaffOMeter')
 class LaffOMeter(DirectFrame):
     deathColor = Vec4(0.58039216, 0.80392157, 0.34117647, 1.0)
 
-    def __init__(self):
+    def __init__(self, forRender = False):
         DirectFrame.__init__(self, relief=None, sortOrder=50, parent=base.a2dBottomLeft)
         self.initialiseoptions(LaffOMeter)
         self.container = DirectFrame(parent=self, relief=None)
         self.container.setBin('gui-popup', 60)
+        if forRender:
+            self.container.setY(0)
+        self.forRender = forRender
         return
 
     def generate(self, r, g, b, animal, maxHP = 50, initialHP = 50):
@@ -54,6 +57,14 @@ class LaffOMeter(DirectFrame):
          self.tooth3,
          self.tooth2,
          self.tooth1]
+        if self.forRender:
+            for tooth in self.teethList:
+                tooth.setY(-0.01)
+
+            self.eyes.setY(-0.01)
+            self.smile.setY(-0.01)
+            self.openSmile.setY(-0.01)
+            self.frown.setY(-0.01)
         self.fractions = [0.0,
          0.166666,
          0.333333,
@@ -62,6 +73,9 @@ class LaffOMeter(DirectFrame):
          0.833333]
         self.currentHealthLbl = DirectLabel(text=str(self.initialHP), parent=self.eyes, pos=(-0.425, 0, 0.05), scale=0.4, relief=None)
         self.maxHealthLbl = DirectLabel(text=str(self.maxHP), parent=self.eyes, pos=(0.425, 0, 0.05), scale=0.4, relief=None)
+        if self.forRender:
+            self.currentHealthLbl.setY(-0.01)
+            self.maxHealthLbl.setY(-0.01)
         self.updateMeter(self.initialHP)
         gui.removeNode()
         return

@@ -8,6 +8,7 @@
 from direct.directnotify.DirectNotifyGlobal import directNotify
 import types
 from pprint import _id
+from lib.coginvasion.npc.NPCGlobals import NPC_DNA
 
 class ToonDNA:
     notify = directNotify.newCategory('ToonDNA')
@@ -144,7 +145,10 @@ class ToonDNA:
      '20': 'phase_3/maps/desat_shirt_21.jpg',
      '21': 'phase_3/maps/desat_shirt_22.jpg',
      '22': 'phase_3/maps/desat_shirt_23.jpg',
-     '23': 'phase_4/maps/tt_t_chr_avt_shirt_sellbotCrusher.jpg'}
+     '23': 'phase_4/maps/tt_t_chr_avt_shirt_sellbotCrusher.jpg',
+     '24': 'phase_4/maps/tt_t_chr_shirt_scientistA.jpg',
+     '25': 'phase_4/maps/tt_t_chr_shirt_scientistB.jpg',
+     '26': 'phase_4/maps/tt_t_chr_shirt_scientistC.jpg'}
     sleeveDNA2sleeve = {'00': 'phase_3/maps/desat_sleeve_1.jpg',
      '01': 'phase_3/maps/desat_sleeve_2.jpg',
      '02': 'phase_3/maps/desat_sleeve_3.jpg',
@@ -168,7 +172,8 @@ class ToonDNA:
      '20': 'phase_3/maps/desat_sleeve_21.jpg',
      '21': 'phase_3/maps/desat_sleeve_22.jpg',
      '22': 'phase_3/maps/desat_sleeve_23.jpg',
-     '23': 'phase_4/maps/tt_t_chr_avt_shirtSleeve_sellbotCrusher.jpg'}
+     '23': 'phase_4/maps/tt_t_chr_avt_shirtSleeve_sellbotCrusher.jpg',
+     '24': 'phase_4/maps/tt_t_chr_shirtSleeve_scientist.jpg'}
     shortDNA2short = {'00': 'phase_3/maps/desat_shorts_1.jpg',
      '01': 'phase_3/maps/desat_shorts_2.jpg',
      '02': 'phase_3/maps/desat_shorts_3.jpg',
@@ -188,7 +193,11 @@ class ToonDNA:
      '16': 'phase_3/maps/desat_skirt_7.jpg',
      '17': 'phase_4/maps/tt_t_chr_avt_shorts_sellbotCrusher.jpg',
      '18': 'phase_4/maps/skirtNew5.jpg',
-     '19': 'phase_4/maps/tt_t_chr_avt_skirt_winter1.jpg'}
+     '19': 'phase_4/maps/tt_t_chr_avt_skirt_winter1.jpg',
+     '20': 'phase_4/maps/tt_t_chr_shorts_scientistA.jpg',
+     '21': 'phase_4/maps/tt_t_chr_shorts_scientistB.jpg',
+     '22': 'phase_4/maps/tt_t_chr_shorts_scientistC.jpg',
+     '23': 'phase_3/maps/desat_shorts_1.jpg'}
     gender2genderDNA = {v:k for k, v in genderDNA2gender.items()}
     animal2animalDNA = {v:k for k, v in animalDNA2animal.items()}
     head2headDNA = {v:k for k, v in headDNA2head.items()}
@@ -304,7 +313,12 @@ class ToonDNA:
     def getDNAStrand(self):
         return self.dnaStrand
 
+    def isCoach(self):
+        return self.getDNAStrand() == NPC_DNA['Coach']
+
     def getToonAnimalNoise(self, noise):
+        if self.isCoach():
+            return 'phase_3/audio/dial/coach.wav'
         return 'phase_3.5/audio/dial/AV_' + self.getAnimal() + '_' + noise + '.mp3'
 
     def generateDNAStrandWithCurrentStyle(self):

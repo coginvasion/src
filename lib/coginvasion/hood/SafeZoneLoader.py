@@ -13,6 +13,8 @@ from QuietZoneState import QuietZoneState
 from lib.coginvasion.manager.SettingsManager import SettingsManager
 from direct.directnotify.DirectNotifyGlobal import directNotify
 from lib.coginvasion.base.ShadowCreator import ShadowCreator
+import ToonInterior
+import LinkTunnel
 
 class SafeZoneLoader(StateData):
     notify = directNotify.newCategory('SafeZoneLoader')
@@ -21,7 +23,10 @@ class SafeZoneLoader(StateData):
         StateData.__init__(self, doneEvent)
         self.hood = hood
         self.parentFSMState = parentFSMState
-        self.fsm = ClassicFSM('safeZoneLoader', [State('off', self.enterOff, self.exitOff), State('playground', self.enterPlayground, self.exitPlayground, ['quietZone']), State('quietZone', self.enterQuietZone, self.exitQuietZone, ['playground'])], 'off', 'off')
+        self.fsm = ClassicFSM('safeZoneLoader', [State('off', self.enterOff, self.exitOff),
+         State('playground', self.enterPlayground, self.exitPlayground, ['quietZone']),
+         State('toonInterior', self.enterToonInterior, self.exitToonInterior, ['quietZone']),
+         State('quietZone', self.enterQuietZone, self.exitQuietZone, ['playground', 'toonInterior'])], 'off', 'off')
         self.placeDoneEvent = 'placeDone'
         self.place = None
         self.playground = None
@@ -31,7 +36,15 @@ class SafeZoneLoader(StateData):
         self.interiorMusic = None
         self.bossBattleMusic = None
         self.music = None
+        self.tournamentMusic = None
+        self.linkTunnels = []
         return
+
+    def findAndMakeLinkTunnels(self):
+        for tunnel in self.geom.findAllMatches('**/*linktunnel*'):
+            dnaRootStr = tunnel.getName()
+            link = LinkTunnel.SafeZoneLinkTunnel(tunnel, dnaRootStr)
+            self.linkTunnels.append(link)
 
     def load(self):
         StateData.load(self)
@@ -45,6 +58,8 @@ class SafeZoneLoader(StateData):
             self.bossBattleMusic = base.loadMusic(self.bossBattleMusicFile)
         if self.interiorMusicFilename:
             self.interiorMusic = base.loadMusic(self.interiorMusicFilename)
+        if self.tournamentMusicFiles:
+            self.tournamentMusic = None
         self.createSafeZone(self.dnaFile)
         self.parentFSMState.addChild(self.fsm)
         width, height, fs, music, sfx, tex_detail, model_detail, aa, af = SettingsManager().getSettings('settings.json')
@@ -76,12 +91,15 @@ class SafeZoneLoader(StateData):
         del self.interiorMusic
         del self.battleMusic
         del self.bossBattleMusic
+        del self.tournamentMusic
         self.ignoreAll()
         ModelPool.garbageCollect()
         TexturePool.garbageCollect()
 
     def enter(self, requestStatus):
         StateData.enter(self)
+        if base.localAvatar.zoneId < 61000:
+            self.findAndMakeLinkTunnels()
         self.fsm.enterInitialState()
         messenger.send('enterSafeZone')
         self.setState(requestStatus['where'], requestStatus)
@@ -97,6 +115,10 @@ class SafeZoneLoader(StateData):
     def exit(self):
         StateData.exit(self)
         messenger.send('exitSafeZone')
+        for link in self.linkTunnels:
+            link.cleanup()
+
+        self.linkTunnels = []
 
     def setState(self, stateName, requestStatus):
         self.fsm.request(stateName, [requestStatus])
@@ -110,17 +132,39 @@ class SafeZoneLoader(StateData):
             self.geom.reparentTo(hidden)
         else:
             self.geom = hidden.attachNewNode(node)
-        self.geom.flattenMedium()
+        self.makeDictionaries(self.hood.dnaStore)
+        if self.__class__.__name__ not in ('TTSafeZoneLoader',):
+            self.geom.flattenMedium()
         gsg = base.win.getGsg()
         if gsg:
             self.geom.prepareScene(gsg)
 
+    def makeDictionaries(self, dnaStore):
+        self.nodeList = []
+        for i in xrange(dnaStore.getNumDNAVisGroups()):
+            groupFullName = dnaStore.getDNAVisGroupName(i)
+            groupName = base.cr.hoodMgr.extractGroupName(groupFullName)
+            groupNode = self.geom.find('**/' + groupFullName)
+            if groupNode.isEmpty():
+                self.notify.error('Could not find visgroup')
+            if self.__class__.__name__ not in ('TTSafeZoneLoader',):
+                groupNode.flattenMedium()
+            self.nodeList.append(groupNode)
+
+        self.hood.dnaStore.resetPlaceNodes()
+        self.hood.dnaStore.resetDNAGroups()
+        self.hood.dnaStore.resetDNAVisGroups()
+        self.hood.dnaStore.resetDNAVisGroupsAI()
+
     def enterPlayground(self, requestStatus):
+        try:
+            self.hood.stopSuitEffect()
+        except:
+            pass
+
         self.acceptOnce(self.placeDoneEvent, self.handlePlaygroundDone)
         self.place = self.playground(self, self.fsm, self.placeDoneEvent)
         self.place.load()
-        self.place.enter(requestStatus)
-        base.cr.playGame.setPlace(self.place)
 
     def exitPlayground(self):
         self.ignore(self.placeDoneEvent)
@@ -132,14 +176,40 @@ class SafeZoneLoader(StateData):
 
     def handlePlaygroundDone(self):
         status = self.place.doneStatus
-        print self.hood.isSameHood(status)
-        if self.hood.isSameHood(status) and status['where'] != 'minigame':
+        if self.hood.isSameHood(status) and status['loader'] == 'safeZoneLoader' and status['where'] not in ('minigame',):
             self.fsm.request('quietZone', [status])
         else:
             self.doneStatus = status
             messenger.send(self.doneEvent)
 
+    def enterToonInterior(self, requestStatus):
+        self.acceptOnce(self.placeDoneEvent, self.handleToonInteriorDone)
+        self.place = ToonInterior.ToonInterior(self, self.fsm, self.placeDoneEvent)
+        self.place.load()
+
+    def enterThePlace(self, requestStatus):
+        base.cr.playGame.setPlace(self.place)
+        self.place.enter(requestStatus)
+
+    def exitToonInterior(self):
+        self.ignore(self.placeDoneEvent)
+        self.place.exit()
+        self.place.unload()
+        self.place = None
+        base.cr.playGame.setPlace(self.place)
+        return
+
+    def handleToonInteriorDone(self):
+        status = self.place.doneStatus
+        if status['loader'] == 'safeZoneLoader' and self.hood.isSameHood(status) and status['shardId'] == None or status['how'] == 'doorOut':
+            self.fsm.request('quietZone', [status])
+        else:
+            self.doneStatus = status
+            messenger.send(self.doneEvent)
+        return
+
     def enterQuietZone(self, requestStatus):
+        self.fsm.request(requestStatus['where'], [requestStatus], exitCurrent=0)
         self.quietZoneDoneEvent = uniqueName('quietZoneDone')
         self.acceptOnce(self.quietZoneDoneEvent, self.handleQuietZoneDone)
         self.quietZoneStateData = QuietZoneState(self.quietZoneDoneEvent)
@@ -156,11 +226,12 @@ class SafeZoneLoader(StateData):
 
     def handleQuietZoneDone(self):
         status = self.quietZoneStateData.getDoneStatus()
-        if status['where'] == 'estate':
+        self.exitQuietZone()
+        if status['where'] == 'estate' or status['loader'] == 'townLoader':
             self.doneStatus = status
             messenger.send(self.doneEvent)
         else:
-            self.fsm.request(status['where'], [status])
+            self.enterThePlace(status)
 
     def enterOff(self):
         pass

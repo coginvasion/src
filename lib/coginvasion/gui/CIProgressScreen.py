@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.gui.CIProgressScreen
 """
-  
+
   Filename: CIProgressScreen.py
   Created by: blach (12Aug14)
-  
+
 """
 from lib.coginvasion.globals import CIGlobals
 from direct.directnotify.DirectNotify import DirectNotify
@@ -14,17 +14,19 @@ notify = DirectNotify().newCategory('CIProgressScreen')
 class CIProgressScreen:
 
     def __init__(self):
-        self.bg = loader.loadTexture('phase_3/maps/loading-background.png')
+        self.bgm = loader.loadModel('phase_3/models/gui/progress-background.bam')
+        self.bgm.find('**/logo').stash()
+        self.bg = self.bgm.find('**/bg')
         self.logo = loader.loadTexture('phase_3/maps/CogInvasion_Logo.png')
-        self.logoImg = OnscreenImage(image=self.logo, scale=(0.5, 0, 0.3), pos=(0, 0, 0.65), parent=hidden)
+        self.logoImg = OnscreenImage(image=self.logo, scale=(0.5, 0, 0.3), pos=(0, 0, 0), parent=hidden)
         self.logoImg.setTransparency(True)
         self.bg_img = OnscreenImage(image=self.bg, parent=hidden)
         self.bg_img.setSx(1.35)
+        self.bg_img.hide()
         self.progress_bar = DirectWaitBar(value=0, pos=(0, 0, -0.85), parent=hidden, text_pos=(0, 0, 0.2))
         self.progress_bar.setSx(1.064)
         self.progress_bar.setSz(0.38)
-        self.loading_lbl = DirectLabel(text='', relief=None, scale=0.5, text_scale=0.25, pos=(0, 0, -0.8), text_align=TextNode.ARight, sortOrder=100, text_fg=(1, 0.2, 0.2, 0.7), text_font=CIGlobals.getMickeyFont(), parent=aspect2d)
-        self.loading_lbl.hide()
+        self.loading_lbl = DirectLabel(text='', relief=None, scale=0.08, pos=(-1.0725, 0, -0.79), text_align=TextNode.ALeft, sortOrder=100, text_fg=(0.343, 0.343, 0.343, 1.0), text_font=CIGlobals.getMinnieFont(), parent=hidden, text_shadow=(0, 0, 0, 1))
         return
 
     def begin(self, hood, range, wantGui):
@@ -32,23 +34,21 @@ class CIProgressScreen:
         self.renderFrames()
         base.setBackgroundColor(0, 0, 0)
         if hood == 'localAvatarEnterGame':
-            self.progress_bar['text'] = 'Entering...'
+            self.loading_lbl['text'] = 'Entering...'
         elif hood == 'init':
-            self.progress_bar['text'] = 'Loading...'
+            self.loading_lbl['text'] = 'Loading...'
         else:
-            self.progress_bar['text'] = 'Loading %s...' % hood
-        self.progress_bar['text_align'] = TextNode.ALeft
-        self.progress_bar['text_pos'] = (-1.01, 0.15)
-        self.progress_bar['text_scale'] = (0.095, 0.25)
-        self.progress_bar['text_font'] = CIGlobals.getMickeyFont()
-        self.progress_bar['text_fg'] = (1, 0.2, 0.2, 0.7)
+            self.loading_lbl['text'] = 'Heading to %s...' % hood
+        self.progress_bar['barColor'] = (0.343, 0.343, 0.343, 1.0)
         self.progress_bar['range'] = range
-        self.bg_img.reparentTo(render2d)
+        self.bgm.reparentTo(aspect2d)
+        self.bg.reparentTo(render2d)
+        self.bg_img.reparentTo(hidden)
+        self.loading_lbl.reparentTo(aspect2d)
         self.logoImg.reparentTo(aspect2d)
         self.progress_bar.reparentTo(aspect2d)
         self.__count = 0
         self.__expectedCount = range
-        taskMgr.add(self.renderFramesTask, 'renderFrames')
         self.progress_bar.update(self.__count)
 
     def renderFramesTask(self, task):
@@ -62,11 +62,17 @@ class CIProgressScreen:
         self.progress_bar.finish()
         self.bg_img.reparentTo(hidden)
         self.logoImg.reparentTo(hidden)
-        self.loading_lbl.hide()
+        self.bg.reparentTo(hidden)
+        self.bgm.reparentTo(hidden)
+        self.loading_lbl.reparentTo(hidden)
         self.progress_bar.reparentTo(hidden)
         self.renderFrames()
 
     def destroy(self):
+        self.bg.removeNode()
+        del self.bg
+        self.bgm.removeNode()
+        del self.bgm
         self.bg_img.destroy()
         self.loading_lbl.destroy()
         self.progress_bar.destroy()

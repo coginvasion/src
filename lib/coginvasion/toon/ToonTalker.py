@@ -3,7 +3,7 @@
 
   Filename: ToonTalker.py
   Created by: blach (??July14)
-  
+
 """
 from lib.coginvasion.globals import CIGlobals
 from pandac.PandaModules import *
@@ -25,6 +25,7 @@ class ToonTalker:
     def __init__(self):
         self.avatar = None
         self.nametag = None
+        self.autoClearChat = True
         return
 
     def setAvatar(self, avatar, nametag):
@@ -36,7 +37,8 @@ class ToonTalker:
             return
         self.clearChat()
         self.taskId = random.randint(0, 1000000000000000000000000000000L)
-        self.tag.hide()
+        if self.nameTag:
+            self.getNameTag().hide()
         if self.isThought(chatString):
             chatString = self.removeThoughtPrefix(chatString)
             bubble = loader.loadModel(CIGlobals.ThoughtBubble)
@@ -47,14 +49,18 @@ class ToonTalker:
             if length > self.MAX_LENGTH:
                 length = self.MAX_LENGTH
             bubble = loader.loadModel(CIGlobals.ChatBubble)
-            taskMgr.doMethodLater(length, self.clearChatTask, 'clearAvatarChat-%s' % str(self.taskId))
+            if self.autoClearChat:
+                taskMgr.doMethodLater(length, self.clearChatTask, 'clearAvatarChat-%s' % str(self.taskId))
         if self.avatarType == CIGlobals.Suit:
             font = CIGlobals.getSuitFont()
         else:
             font = CIGlobals.getToonFont()
         self.chatBubble = ChatBalloon(bubble).generate(chatString, font)
         self.chatBubble.setEffect(BillboardEffect.make(Vec3(0, 0, 1), True, False, 3.0, camera, Point3(0, 0, 0)))
-        self.chatBubble.setZ(self.tag.getZ())
+        if self.nameTag:
+            self.chatBubble.setZ(self.getNameTag().getZ())
+        elif self.avatarType == CIGlobals.Suit:
+            self.chatBubble.setZ(CIGlobals.SuitNameTagPos[self.head])
         if hasattr(self.avatar, 'getGhost'):
             if not self.avatar.getGhost() or self.avatar.doId == base.localAvatar.doId:
                 self.chatBubble.reparentTo(self)
@@ -89,8 +95,8 @@ class ToonTalker:
             return
 
         if hasattr(self.avatar, 'getGhost'):
-            if self.tag and not self.avatar.getGhost() or self.tag and self.avatar.doId == base.localAvatar.doId:
-                self.tag.show()
-        elif self.tag:
-            self.tag.show()
+            if self.nameTag and not self.avatar.getGhost() or self.nameTag and self.avatar.doId == base.localAvatar.doId:
+                self.getNameTag().show()
+        elif self.nameTag:
+            self.getNameTag().show()
         taskMgr.remove('clearAvatarChat-' + str(self.taskId))

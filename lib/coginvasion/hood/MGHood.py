@@ -2,7 +2,7 @@
 """
 
   Filename: MGHood.py
-  Created by: blach (5Jan15)
+  Created by: blach (05Jan15)
 
 """
 import ToonHood

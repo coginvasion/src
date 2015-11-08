@@ -2,7 +2,7 @@
 """
 
   Filename: RecoverSafeZoneLoader.py
-  Created by: blach (3Apr15)
+  Created by: blach (03Apr15)
 
 """
 from panda3d.core import TransparencyAttrib
@@ -20,6 +20,7 @@ class RecoverSafeZoneLoader(SafeZoneLoader):
         self.interiorMusicFilename = None
         self.battleMusicFile = None
         self.bossBattleMusicFile = None
+        self.tournamentMusicFiles = None
         self.dnaFile = 'phase_5.5/dna/estate_1.dna'
         self.szStorageDNAFile = 'phase_5.5/dna/storage_estate.dna'
         return

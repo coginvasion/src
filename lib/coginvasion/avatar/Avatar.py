@@ -3,11 +3,10 @@
 
   Filename: Avatar.py
   Created by: blach (??July14)
-  
+
 """
-from lib.coginvasion.globals import CIGlobals
-from lib.coginvasion.toon import ToonTalker
 from direct.actor.Actor import Actor
+from direct.showbase.ShadowDemo import ShadowCaster, arbitraryShadow
 from panda3d.core import *
 from pandac.PandaModules import *
 from direct.directnotify.DirectNotify import DirectNotify
@@ -15,6 +14,9 @@ from lib.coginvasion.toon.ChatBalloon import ChatBalloon
 from lib.coginvasion.toon.LabelScaler import LabelScaler
 from lib.coginvasion.toon.NameTag import NameTag
 from lib.coginvasion.base.ShadowPlacer import ShadowPlacer
+from lib.coginvasion.globals import CIGlobals
+from lib.coginvasion.cog import SuitBank
+from lib.coginvasion.toon import ToonTalker
 from direct.controls.ControlManager import CollisionHandlerRayStart
 import random
 notify = DirectNotify().newCategory('Avatar')
@@ -33,7 +35,7 @@ class Avatar(ToonTalker.ToonTalker, Actor):
 
         ToonTalker.ToonTalker.__init__(self)
         Actor.__init__(self, None, None, None, flattenable=0, setFinal=1)
-        self.nameTag = NameTag()
+        self.nameTag = None
         self.setTwoSided(False)
         self.avatarType = None
         self.charName = None
@@ -43,9 +45,9 @@ class Avatar(ToonTalker.ToonTalker, Actor):
         return
 
     def deleteNameTag(self):
-        if self.tag:
-            self.tag.destroy()
-            self.tag = None
+        if self.nameTag:
+            self.nameTag.destroy()
+            self.nameTag = None
         return
 
     def disable(self):
@@ -77,7 +79,7 @@ class Avatar(ToonTalker.ToonTalker, Actor):
             Actor.delete(self)
 
     def getNameTag(self):
-        return self.tag
+        return self.nameTag.getNodePath()
 
     def setHeight(self, height):
         self.height = height
@@ -92,7 +94,6 @@ class Avatar(ToonTalker.ToonTalker, Actor):
         if not nameString:
             return
         self.name = nameString
-        self.avatarType = avatarType
         if charName:
             self.charName = charName
         if createNow:
@@ -102,12 +103,18 @@ class Avatar(ToonTalker.ToonTalker, Actor):
         return self.name
 
     def setupNameTag(self, tempName = None):
+        if not self.name and not tempName:
+            return
+        offset = 0.0
         if self.avatarType:
             if self.avatarType == CIGlobals.Suit:
                 if self.charName:
-                    z = CIGlobals.SuitNameTagPos[self.charName]
+                    offset = 0.5
+                    z = SuitBank.getSuitByName(self.charName).getNametagZ()
             elif self.avatarType == CIGlobals.CChar:
                 z = 5
+            elif self.avatarType == CIGlobals.Toon:
+                offset = 0.5
             else:
                 z = 0
         self.deleteNameTag()
@@ -115,21 +122,25 @@ class Avatar(ToonTalker.ToonTalker, Actor):
             name = tempName
         else:
             name = self.name
-        self.tag = self.nameTag.generate(name)
-        self.tag['text_fg'] = CIGlobals.NameTagColors[self.avatarType]['fg']
-        self.tag['text_bg'] = CIGlobals.NameTagColors[self.avatarType]['bg']
-        self.tag.setEffect(BillboardEffect.make(Vec3(0, 0, 1), True, False, 3.0, camera, Point3(0, 0, 0)))
-        ToonTalker.ToonTalker.setAvatar(self, self, self.tag)
-        self.tag.reparentTo(self)
+        tag = NameTag(name, self.avatarType)
+        tag.setTextColor(tag.NameTagColors[self.avatarType]['fg'])
+        tag.setCardColor(tag.NameTagBackgrounds['up'])
+        self.nameTag = tag
+        np = tag.getNodePath()
+        np.setEffect(BillboardEffect.make(Vec3(0, 0, 1), True, False, 3.0, camera, Point3(0, 0, 0)))
+        ToonTalker.ToonTalker.setAvatar(self, self, np)
+        np.reparentTo(self)
         if self.avatarType == CIGlobals.Toon:
-            self.tag.setZ(self.getHeight() + 0.3)
+            np.setZ(self.getHeight() + offset)
+            self.nameTag.setClickable(1)
         elif self.avatarType == CIGlobals.Suit or self.avatarType == CIGlobals.CChar:
-            self.tag.setZ(z)
+            np.setZ(z + offset)
         if self.avatarType == CIGlobals.Suit:
-            self.tag['text_font'] = CIGlobals.getSuitFont()
+            self.nameTag.setFont(CIGlobals.getSuitFont())
         else:
-            self.tag['text_font'] = CIGlobals.getToonFont()
-        LabelScaler().resize(self.tag)
+            self.nameTag.setFont(CIGlobals.getToonFont())
+        ls = LabelScaler()
+        ls.resize(np)
 
     def getAirborneHeight(self):
         height = self.getPos(self.shadowPlacer.shadowNodePath)
@@ -164,7 +175,6 @@ class Avatar(ToonTalker.ToonTalker, Actor):
         cRayNode.setIntoCollideMask(BitMask32.allOff())
         lifter = CollisionHandlerFloor()
         lifter.addCollider(self.cRayNodePath, self)
-        base.cTrav.addCollider(self.cRayNodePath, lifter)
         cSphere = CollisionSphere(0.0, 0.0, radius, 0.01)
         cSphereNode = CollisionNode(name + 'fc')
         cSphereNode.addSolid(cSphere)
@@ -174,12 +184,15 @@ class Avatar(ToonTalker.ToonTalker, Actor):
         pusher = CollisionHandlerPusher()
         pusher.addCollider(cSphereNodePath, self)
         self.floorCollNodePath = cSphereNodePath
-        base.cTrav.addCollider(cSphereNodePath, pusher)
+        base.cTrav.addCollider(self.floorCollNodePath, pusher)
+        base.shadowTrav.addCollider(self.cRayNodePath, lifter)
 
     def disableRay(self):
         if hasattr(self, 'cRayNodePath'):
+            base.shadowTrav.removeCollider(self.cRayNodePath)
             self.cRayNodePath.removeNode()
             del self.cRayNodePath
+            base.cTrav.removeCollider(self.floorCollNodePath)
             self.floorCollNodePath.removeNode()
             del self.floorCollNodePath
         self.rayNode = None

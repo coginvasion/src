@@ -2,7 +2,7 @@
 """
 
   Filename: MotionBlur.py
-  Created by: blach (7Feb15)
+  Created by: blach (07Feb15)
 
 """
 from pandac.PandaModules import *

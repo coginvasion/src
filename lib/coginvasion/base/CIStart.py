@@ -1,17 +1,19 @@
 # Embedded file name: lib.coginvasion.base.CIStart
 """
-  
+
   Filename: CIStart.py
   Created by: blach (17June14)
-  
+
 """
-from pandac.PandaModules import *
+from panda3d.core import *
 import __builtin__
 import Logger
 Logger.Starter()
 from lib.coginvasion.manager.SettingsManager import SettingsManager
 jsonfile = 'settings.json'
 print 'CIStart: Reading settings file ' + jsonfile
+sm = SettingsManager()
+sm.maybeFixAA()
 import os
 
 class game:
@@ -28,13 +30,21 @@ import sys
 import random
 import __builtin__
 print 'CIStart: Starting the game.'
-from pandac.PandaModules import *
+from panda3d.core import *
+print 'CIStart: Using Panda3D version {0}'.format(PandaSystem.getVersionString())
+loadPrcFile('config/Confauto.prc')
 loadPrcFile('config/config_client.prc')
-print ConfigPageManager.getGlobalPtr()
 from direct.showbase.ShowBaseWide import ShowBase
 base = ShowBase()
+base.cTrav = CollisionTraverser()
+if base.config.GetString('load-display') == 'pandagl':
+    print 'CIStart: Using OpenGL graphics library.'
+elif base.config.GetString('load-display') == 'pandadx9':
+    print 'CIStart: Using DirectX 9 graphics library.'
+else:
+    print 'CIStart: Using an unknown graphics library.'
 if base.config.GetString('audio-library-name') == 'p3miles_audio':
-    print 'CIStart: Using RAD Game Tools, Miles Sound System.'
+    print 'CIStart: Using Miles audio library.'
 elif base.config.GetString('audio-library-name') == 'p3fmod_audio':
     print 'CIStart: Using FMOD audio library.'
 elif base.config.GetString('audio-library-name') == 'p3openal_audio':
@@ -78,7 +88,7 @@ base.setFrameRateMeter(False)
 base.accept('f9', base.screenshot, ['screenshots/screenshot'])
 from direct.filter.CommonFilters import CommonFilters
 print 'CIStart: Setting display preferences...'
-SettingsManager().applySettings(jsonfile)
+sm.applySettings(jsonfile)
 if base.win == None:
     print 'CIStart: Unable to open window; aborting.'
     sys.exit()
@@ -86,19 +96,14 @@ else:
     print 'CIStart: Successfully opened window.'
 ConfigVariableDouble('decompressor-step-time').setValue(0.01)
 ConfigVariableDouble('extractor-step-time').setValue(0.01)
-import MotionBlur
-blur = MotionBlur.MotionBlur()
-print 'CIStart: Setting default font...'
 DirectGuiGlobals.setDefaultFontFunc(CIGlobals.getToonFont)
 DirectGuiGlobals.setDefaultFont(CIGlobals.getToonFont())
-print 'CIStart: Setting default GUI sounds...'
 DirectGuiGlobals.setDefaultRolloverSound(loader.loadSfx('phase_3/audio/sfx/GUI_rollover.mp3'))
 DirectGuiGlobals.setDefaultClickSound(loader.loadSfx('phase_3/audio/sfx/GUI_create_toon_fwd.mp3'))
-print 'CIStart: Setting default Dialog geometry...'
 DirectGuiGlobals.setDefaultDialogGeom(loader.loadModel('phase_3/models/gui/dialog_box_gui.bam'))
 
 def maybeDoSomethingWithMusic(condition):
-    width, height, fs, music, sfx, tex_detail, model_detail, aa, af = SettingsManager().getSettings(jsonfile)
+    width, height, fs, music, sfx, tex_detail, model_detail, aa, af = sm.getSettings(jsonfile)
     if condition == 0:
         if music == True:
             base.enableMusic(False)
@@ -119,7 +124,7 @@ def doneInitLoad():
 print 'CIStart: Starting initial game load...'
 from InitialLoad import InitialLoad
 il = InitialLoad(doneInitLoad)
-music = base.loadMusic(CIGlobals.ThemeSong)
+music = base.loadMusic(CIGlobals.getThemeSong())
 base.playMusic(music, looping=1, volume=0.75)
 il.load()
 base.run()

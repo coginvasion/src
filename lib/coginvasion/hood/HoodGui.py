@@ -2,7 +2,7 @@
 """
   
   Filename: HoodGui.py
-  Created by: blach (4Oct14)
+  Created by: blach (04Oct14)
   
 """
 from direct.gui.DirectGui import *

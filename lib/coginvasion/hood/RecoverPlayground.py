@@ -2,7 +2,7 @@
 """
 
   Filename: RecoverPlayground.py
-  Created by: blach (3Apr15)
+  Created by: blach (03Apr15)
 
 """
 import Playground

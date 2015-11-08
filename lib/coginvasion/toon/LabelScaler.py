@@ -1,8 +1,8 @@
 # Embedded file name: lib.coginvasion.toon.LabelScaler
 """
-  
+
   Filename: LabelScaler.py
-  Created by: blach (9July14)
+  Created by: blach (09July14)
 
 """
 import math
@@ -11,7 +11,7 @@ class LabelScaler:
     SCALING_MINDIST = 1
     SCALING_MAXDIST = 50
 
-    def __init__(self, factor = 0.055):
+    def __init__(self, factor = 0.06):
         self.SCALING_FACTOR = factor
 
     def resize(self, node):

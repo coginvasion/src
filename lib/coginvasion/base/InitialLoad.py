@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.base.InitialLoad
 """
-  
+
   Filename: InitialLoad.py
   Created by: blach (17June14)
-  
+
 """
 from lib.coginvasion.globals import CIGlobals
 from direct.gui.DirectGui import *

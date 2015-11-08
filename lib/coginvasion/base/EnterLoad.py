@@ -5,6 +5,7 @@
   Created by: blach (18Apr15)
 
 """
+from panda3d.core import VirtualFileSystem, Filename
 import FileUtility
 from LoadUtility import LoadUtility
 
@@ -12,7 +13,7 @@ class EnterLoad(LoadUtility):
 
     def __init__(self, callback):
         LoadUtility.__init__(self, callback)
-        phasesToScan = ['phase_3.5/models', 'phase_4/models', 'phase_5/models']
+        phasesToScan = ['phase_3.5/models']
         self.models = FileUtility.findAllModelFilesInVFS(phasesToScan)
 
     def load(self):

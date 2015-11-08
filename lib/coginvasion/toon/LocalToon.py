@@ -1,31 +1,37 @@
 # Embedded file name: lib.coginvasion.toon.LocalToon
 """
-  
+
   Filename: LocalToon.py
   Created by: blach (30Nov14)
-  
+
 """
-from panda3d.core import *
+from panda3d.core import CollisionTraverser, Point3, CollisionRay, CollisionNode, BitMask32, CollisionHandlerQueue
 from lib.coginvasion.globals import CIGlobals
 from direct.controls import ControlManager
-from direct.controls.GhostWalker import GhostWalker
 from direct.controls.GravityWalker import GravityWalker
-from direct.controls.ObserverWalker import ObserverWalker
-from direct.controls.PhysicsWalker import PhysicsWalker
-from direct.controls.SwimWalker import SwimWalker
-from direct.controls.TwoDWalker import TwoDWalker
+from direct.task import Task
 from DistributedToon import DistributedToon
 from SmartCamera import SmartCamera
 from lib.coginvasion.gui.ChatInput import ChatInput
 from lib.coginvasion.gui.LaffOMeter import LaffOMeter
 from lib.coginvasion.gui.MoneyGui import MoneyGui
-from lib.coginvasion.gui.PieGui import PieGui
-from direct.interval.IntervalGlobal import *
-from direct.gui.DirectGui import *
+from lib.coginvasion.gui.InventoryGui import InventoryGui
+from lib.coginvasion.gags import GagGlobals
+from direct.interval.IntervalGlobal import Sequence, Wait, Func
+from direct.gui.DirectButton import DirectButton
+from direct.showbase.InputStateGlobal import inputState
+from direct.gui.DirectGui import DGG
 from lib.coginvasion.hood import ZoneUtil
+from lib.coginvasion.gags.GagType import GagType
+from lib.coginvasion.gui.ToonPanel import ToonPanel
+from lib.coginvasion.friends.FriendRequestManager import FriendRequestManager
+from lib.coginvasion.base.PositionExaminer import PositionExaminer
+from lib.coginvasion.friends.FriendsList import FriendsList
+from lib.coginvasion.suit import SuitAttacks
+import random
+from lib.coginvasion.gags.GagState import GagState
 
 class LocalToon(DistributedToon):
-    tntMaxDistance = 20.0
     neverDisable = 1
 
     def __init__(self, cr):
@@ -40,8 +46,16 @@ class LocalToon(DistributedToon):
         self.smartCamera = SmartCamera()
         self.chatInput = ChatInput()
         self.moneyGui = MoneyGui()
-        self.pieGui = PieGui(self.pies)
         self.laffMeter = LaffOMeter()
+        self.positionExaminer = PositionExaminer()
+        self.friendRequestManager = FriendRequestManager()
+        self.friendsList = FriendsList()
+        self.panel = ToonPanel()
+        friendsgui = loader.loadModel('phase_3.5/models/gui/friendslist_gui.bam')
+        self.friendButton = DirectButton(geom=(friendsgui.find('**/FriendsBox_Closed'), friendsgui.find('**/FriendsBox_Rollover'), friendsgui.find('**/FriendsBox_Rollover')), text=('', 'Friends', 'Friends', ''), text_fg=(1, 1, 1, 1), text_shadow=(0, 0, 0, 1), text_scale=0.065, text_pos=(0, -0.2), relief=None, parent=base.a2dTopRight, pos=(-0.18, 0.0, -0.17), command=self.friendsButtonClicked, scale=0.75)
+        friendsgui.removeNode()
+        del friendsgui
+        self.hideFriendButton()
         self.runSfx = base.loadSfx('phase_3.5/audio/sfx/AV_footstep_runloop.wav')
         self.runSfx.setLoop(True)
         self.walkSfx = base.loadSfx('phase_3.5/audio/sfx/AV_footstep_walkloop.wav')
@@ -58,11 +72,174 @@ class LocalToon(DistributedToon):
         self.isMoving_side = False
         self.isMoving_back = False
         self.isMoving_jump = False
-        self.weaponType = None
-        self.pieType = None
         self.pieThrowBtn = None
-        base.cTrav = CollisionTraverser()
+        self.myBattle = None
+        self.invGui = None
+        self.pickerTrav = None
+        self.pickerRay = None
+        self.pickerRayNode = None
+        self.pickerHandler = None
+        self.rolledOverTag = None
+        self.inTutorial = False
+        self.hasDoneJump = False
+        self.lastState = None
+        self.lastAction = None
         return
+
+    def hasDiscoveredHood(self, zoneId):
+        return zoneId in self.hoodsDiscovered
+
+    def hasTeleportAccess(self, zoneId):
+        return zoneId in self.teleportAccess
+
+    def tutorialCreated(self, zoneId):
+        self.cr.tutorialCreated(zoneId)
+
+    def friendsButtonClicked(self):
+        self.hideFriendButton()
+        self.friendsList.fsm.request('onlineFriendsList')
+
+    def hideFriendButton(self):
+        self.friendButton.hide()
+
+    def showFriendButton(self):
+        self.friendButton.show()
+
+    def gotoNode(self, node, eyeHeight = 3):
+        possiblePoints = (Point3(3, 6, 0),
+         Point3(-3, 6, 0),
+         Point3(6, 6, 0),
+         Point3(-6, 6, 0),
+         Point3(3, 9, 0),
+         Point3(-3, 9, 0),
+         Point3(6, 9, 0),
+         Point3(-6, 9, 0),
+         Point3(9, 9, 0),
+         Point3(-9, 9, 0),
+         Point3(6, 0, 0),
+         Point3(-6, 0, 0),
+         Point3(6, 3, 0),
+         Point3(-6, 3, 0),
+         Point3(9, 9, 0),
+         Point3(-9, 9, 0),
+         Point3(0, 12, 0),
+         Point3(3, 12, 0),
+         Point3(-3, 12, 0),
+         Point3(6, 12, 0),
+         Point3(-6, 12, 0),
+         Point3(9, 12, 0),
+         Point3(-9, 12, 0),
+         Point3(0, -6, 0),
+         Point3(-3, -6, 0),
+         Point3(0, -9, 0),
+         Point3(-6, -9, 0))
+        for point in possiblePoints:
+            pos = self.positionExaminer.consider(node, point, eyeHeight)
+            if pos:
+                self.setPos(node, pos)
+                self.lookAt(node)
+                self.setHpr(self.getH() + random.choice((-10, 10)), 0, 0)
+                return
+
+        self.setPos(node, 0, 0, 0)
+
+    def setFriendsList(self, friends):
+        DistributedToon.setFriendsList(self, friends)
+        self.cr.friendsManager.d_requestFriendsList()
+        self.panel.maybeUpdateFriendButton()
+
+    def d_requestAddFriend(self, avId):
+        self.sendUpdate('requestAddFriend', [avId])
+
+    def setupPicker(self):
+        self.pickerTrav = CollisionTraverser('LT.pickerTrav')
+        self.pickerRay = CollisionRay()
+        rayNode = CollisionNode('LT.pickerNode')
+        rayNode.addSolid(self.pickerRay)
+        rayNode.setCollideMask(BitMask32(0))
+        rayNode.setFromCollideMask(CIGlobals.WallBitmask)
+        self.pickerRayNode = base.camera.attachNewNode(rayNode)
+        self.pickerHandler = CollisionHandlerQueue()
+        self.pickerTrav.addCollider(self.pickerRayNode, self.pickerHandler)
+
+    def enablePicking(self):
+        self.accept('mouse1', self.pickedSomething_down)
+        self.accept('mouse1-up', self.pickedSomething_up)
+        base.taskMgr.add(self.__travMousePicker, 'LT.travMousePicker')
+
+    def disablePicking(self):
+        base.taskMgr.remove('LT.travMousePicker')
+        self.ignore('mouse1')
+        self.ignore('mouse1-up')
+
+    def pickedSomething_down(self):
+        if self.rolledOverTag:
+            base.playSfx(DGG.getDefaultClickSound())
+            avatar = self.cr.doId2do.get(self.rolledOverTag)
+            avatar.nameTag.setPickerState('down')
+
+    def pickedSomething_up(self):
+        if self.rolledOverTag:
+            avatar = self.cr.doId2do.get(self.rolledOverTag)
+            avatar.nameTag.setPickerState('up')
+            self.panel.makePanel(self.rolledOverTag)
+
+    def __travMousePicker(self, task):
+        if not base.mouseWatcherNode.hasMouse():
+            return task.cont
+        else:
+            mpos = base.mouseWatcherNode.getMouse()
+            self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
+            self.pickerTrav.traverse(render)
+            if self.pickerHandler.getNumEntries() > 0:
+                self.pickerHandler.sortEntries()
+                pickedObject = self.pickerHandler.getEntry(0).getIntoNodePath()
+                avatarId = pickedObject.getParent().getPythonTag('avatar')
+                if avatarId != None:
+                    for do in self.cr.doId2do.values():
+                        if do.__class__.__name__ == 'DistributedToon':
+                            if do.doId == avatarId:
+                                if do.nameTag.getClickable() == 1:
+                                    if do.nameTag.fsm.getCurrentState().getName() != 'rollover' and do.nameTag.fsm.getCurrentState().getName() != 'down':
+                                        do.nameTag.setPickerState('rollover')
+                                        base.playSfx(DGG.getDefaultRolloverSound())
+                                        self.rolledOverTag = avatarId
+                                        break
+                        elif do.__class__.__name__ == 'DistributedToon':
+                            if do.nameTag.fsm.getCurrentState().getName() != 'up':
+                                do.nameTag.setPickerState('up')
+
+                elif self.rolledOverTag:
+                    avatar = self.cr.doId2do.get(self.rolledOverTag)
+                    if avatar:
+                        if avatar.nameTag.fsm.getCurrentState().getName() != 'up':
+                            avatar.nameTag.setPickerState('up')
+                    self.rolledOverTag = None
+            return task.cont
+
+    def prepareToSwitchControlType(self):
+        inputs = ['run',
+         'forward',
+         'reverse',
+         'turnLeft',
+         'turnRight',
+         'slideLeft',
+         'slideRight',
+         'jump']
+        for inputName in inputs:
+            try:
+                inputState.releaseInputs(inputName)
+            except:
+                pass
+
+    def getBackpack(self):
+        return DistributedToon.getBackpack(self)
+
+    def setMyBattle(self, battle):
+        self.myBattle = battle
+
+    def getMyBattle(self):
+        return self.myBattle
 
     def ghostOn(self):
         self.getGeomNode().setTransparency(1)
@@ -109,8 +286,9 @@ class LocalToon(DistributedToon):
          Point3(0.0, camHeight, camHeight * 4.0),
          Point3(0.0, camHeight, camHeight * -1.0),
          0)
-        self.smartCamera.set_default_pos(camPos)
-        self.smartCamera.set_parent(self)
+        self.smartCamera.initializeSmartCamera()
+        self.smartCamera.setIdealCameraPos(camPos[0])
+        self.smartCamera.setLookAtPoint(defLookAt)
 
     def setDNAStrand(self, dnaStrand):
         DistributedToon.setDNAStrand(self, dnaStrand)
@@ -119,16 +297,12 @@ class LocalToon(DistributedToon):
 
     def setMoney(self, money):
         DistributedToon.setMoney(self, money)
-        self.moneyGui.update()
-
-    def setGagAmmo(self, ammoList):
-        DistributedToon.setGagAmmo(self, ammoList)
-        self.pieGui.update()
+        self.moneyGui.update(money)
 
     def setupNameTag(self, tempName = None):
         DistributedToon.setupNameTag(self, tempName)
-        if self.tag:
-            self.tag['text_fg'] = CIGlobals.LocalNameTagColor
+        if self.nameTag:
+            self.nameTag.setColorLocal()
 
     def d_broadcastPositionNow(self):
         self.d_clearSmoothing()
@@ -140,34 +314,56 @@ class LocalToon(DistributedToon):
             DistributedToon.setAnimState(self, anim, callback=callback, extraArgs=extraArgs)
 
     def attachCamera(self):
-        self.smartCamera.initialize_smartcamera()
+        camera.reparentTo(self)
+        camera.setPos(self.smartCamera.getIdealCameraPos())
 
     def startSmartCamera(self):
-        self.smartCamera.initialize_smartcamera_collisions()
-        self.smartCamera.start_smartcamera()
+        self.smartCamera.startUpdateSmartCamera()
 
     def resetSmartCamera(self):
         self.stopSmartCamera()
         self.startSmartCamera()
 
     def stopSmartCamera(self):
-        self.smartCamera.stop_smartcamera()
+        self.smartCamera.stopUpdateSmartCamera()
 
     def detachCamera(self):
         camera.reparentTo(render)
         camera.setPos(0, 0, 0)
         camera.setHpr(0, 0, 0)
 
+    def handleSuitAttack(self, attack_id, suit_id):
+        DistributedToon.handleSuitAttack(self, attack_id, suit_id)
+        if not self.isDead() and base.config.GetBool('want-sa-reactions'):
+            base.taskMgr.remove('LT.attackReactionDone')
+            attack = SuitAttacks.SuitAttackLengths.keys()[attack_id]
+            suit = self.cr.doId2do.get(suit_id)
+            animToPlay = None
+            timeToWait = 3.0
+            if attack not in ('pickpocket', 'fountainpen'):
+                suitH = suit.getH(render) % 360
+                myH = self.getH(render) % 360
+                if -90.0 <= suitH - myH <= 90.0:
+                    animToPlay = 'fallFWD'
+                else:
+                    animToPlay = 'fallBCK'
+            elif attack in ('pickpocket',):
+                animToPlay = 'cringe'
+            elif attack in ('fountainpen',):
+                animToPlay = 'conked'
+                timeToWait = 5.0
+            self.cr.playGame.getPlace().fsm.request('stop')
+            self.b_setAnimState(animToPlay)
+            base.taskMgr.doMethodLater(timeToWait, self.__attackReactionDone, 'LT.attackReactionDone')
+        return
+
+    def __attackReactionDone(self, task):
+        self.cr.playGame.hood.loader.place.fsm.request('walk')
+        self.b_setAnimState('neutral')
+        return Task.done
+
     def enableAvatarControls(self):
         self.walkControls.enableAvatarControls()
-        self.accept('arrow_up', self.updateMovementKeymap, ['forward', 1])
-        self.accept('arrow_up-up', self.updateMovementKeymap, ['forward', 0])
-        self.accept('arrow_down', self.updateMovementKeymap, ['backward', 1])
-        self.accept('arrow_down-up', self.updateMovementKeymap, ['backward', 0])
-        self.accept('arrow_left', self.updateMovementKeymap, ['left', 1])
-        self.accept('arrow_left-up', self.updateMovementKeymap, ['left', 0])
-        self.accept('arrow_right', self.updateMovementKeymap, ['right', 1])
-        self.accept('arrow_right-up', self.updateMovementKeymap, ['right', 0])
         self.accept('control', self.updateMovementKeymap, ['jump', 1])
         self.accept('control-up', self.updateMovementKeymap, ['jump', 0])
         taskMgr.add(self.movementTask, 'avatarMovementTask')
@@ -194,7 +390,7 @@ class LocalToon(DistributedToon):
         self.isMoving_jump = False
         self.avatarMovementEnabled = False
         self.playMovementSfx(None)
-        for k, v in self.movementKeymap.items():
+        for k, _ in self.movementKeymap.items():
             self.updateMovementKeymap(k, 0)
 
         return
@@ -219,8 +415,13 @@ class LocalToon(DistributedToon):
     def __forward(self):
         self.resetHeadHpr()
         self.stopLookAround()
-        self.playMovementSfx('run')
-        self.b_setAnimState('run')
+        if self.getHealth() < 1:
+            self.playMovementSfx('walk')
+            self.setPlayRate(1.2, 'dwalk')
+            self.setAnimState('deadWalk')
+        else:
+            self.playMovementSfx('run')
+            self.setAnimState('run')
         self.isMoving_side = False
         self.isMoving_back = False
         self.isMoving_forward = True
@@ -230,8 +431,12 @@ class LocalToon(DistributedToon):
         self.resetHeadHpr()
         self.stopLookAround()
         self.playMovementSfx('walk')
-        self.setPlayRate(1.0, 'walk')
-        self.b_setAnimState('walk')
+        if self.getHealth() < 1:
+            self.setPlayRate(1.2, 'dwalk')
+            self.setAnimState('deadWalk')
+        else:
+            self.setPlayRate(1.0, 'walk')
+            self.setAnimState('walk')
         self.isMoving_forward = False
         self.isMoving_back = False
         self.isMoving_side = True
@@ -241,8 +446,11 @@ class LocalToon(DistributedToon):
         self.resetHeadHpr()
         self.stopLookAround()
         self.playMovementSfx('walk')
-        self.setPlayRate(-1.0, 'walk')
-        self.b_setAnimState('walk')
+        if self.getHealth() < 1:
+            self.setPlayRate(-1.0, 'dwalk')
+            self.setAnimState('deadWalk')
+        else:
+            self.setAnimState('walkBack')
         self.isMoving_side = False
         self.isMoving_forward = False
         self.isMoving_back = True
@@ -250,10 +458,11 @@ class LocalToon(DistributedToon):
 
     def __jump(self):
         self.playMovementSfx(None)
-        if self.isMoving_forward or self.isMoving_side or self.isMoving_back:
-            self.b_setAnimState('leap')
-        else:
-            self.b_setAnimState('jump')
+        if base.localAvatar.getHealth() > 0:
+            if self.playingAnim == 'run' or self.playingAnim == 'walk':
+                self.b_setAnimState('leap')
+            else:
+                self.b_setAnimState('jump')
         self.isMoving_side = False
         self.isMoving_forward = False
         self.isMoving_back = False
@@ -264,7 +473,11 @@ class LocalToon(DistributedToon):
         self.resetHeadHpr()
         self.startLookAround()
         self.playMovementSfx(None)
-        self.b_setAnimState('neutral')
+        if base.localAvatar.getHealth() > 0:
+            self.setAnimState('neutral')
+        else:
+            self.setPlayRate(1.0, 'dneutral')
+            self.setAnimState('deadNeutral')
         self.isMoving_side = False
         self.isMoving_forward = False
         self.isMoving_back = False
@@ -273,40 +486,60 @@ class LocalToon(DistributedToon):
 
     def movementTask(self, task):
         if self.getMovementKeyValue('jump') == 1:
-            if not self.isMoving_jump:
-                if not self.walkControls.isAirborne:
-                    if self.walkControls.mayJump:
-                        self.__jump()
-                    elif self.getMovementKeyValue('forward') == 1:
-                        if not self.isMoving_forward:
-                            self.__forward()
-                    elif self.getMovementKeyValue('backward') == 1:
-                        if not self.isMoving_back:
-                            self.__reverse()
-                    elif self.getMovementKeyValue('left') == 1 or self.getMovementKeyValue('right') == 1:
-                        if not self.isMoving_side:
-                            self.__turn()
-                    elif self.isMoving_side or self.isMoving_forward or self.isMoving_back:
-                        self.__neutral()
-        elif self.getMovementKeyValue('forward') == 1:
-            if not self.isMoving_forward:
-                if not self.walkControls.isAirborne:
-                    self.__forward()
-        elif self.getMovementKeyValue('backward') == 1:
-            if not self.isMoving_back:
-                if not self.walkControls.isAirborne:
-                    self.__reverse()
-        elif self.getMovementKeyValue('left') == 1 or self.getMovementKeyValue('right') == 1:
-            if not self.isMoving_side:
-                if not self.walkControls.isAirborne:
-                    self.__turn()
-        elif self.isMoving_side or self.isMoving_forward or self.isMoving_back or self.isMoving_jump:
             if not self.walkControls.isAirborne:
-                self.__neutral()
+                if self.walkControls.mayJump:
+                    self.__jump()
+                    self.hasDoneJump = True
+                elif self.hasDoneJump:
+                    if self.getHealth() > 0:
+                        self.b_setAnimState('Happy')
+                    self.hasDoneJump = False
+        elif not self.walkControls.isAirborne:
+            if self.hasDoneJump:
+                if self.getHealth() > 0:
+                    self.b_setAnimState('Happy')
+                self.hasDoneJump = False
+        return task.cont
+
+    def startTrackAnimToSpeed(self):
+        base.taskMgr.add(self.trackAnimToSpeed, self.uniqueName('trackAnimToSpeed'))
+
+    def stopTrackAnimToSpeed(self):
+        base.taskMgr.remove(self.uniqueName('trackAnimToSpeed'))
+
+    def trackAnimToSpeed(self, task):
+        speed, rotSpeed, slideSpeed = self.walkControls.getSpeeds()
+        state = None
+        if self.getHealth() > 0:
+            state = 'Happy'
+        else:
+            state = 'Sad'
+        if state != self.lastState:
+            self.lastState = state
+            self.b_setAnimState(state)
+            if state == 'Sad':
+                self.setWalkSpeedSlow()
+            else:
+                self.setWalkSpeedNormal()
+        action = self.setSpeed(speed, rotSpeed)
+        if action != self.lastAction:
+            self.lastAction = action
+            if action == CIGlobals.WALK_INDEX or action == CIGlobals.REVERSE_INDEX:
+                self.resetHeadHpr()
+                self.stopLookAround()
+                self.playMovementSfx('walk')
+            elif action == CIGlobals.RUN_INDEX:
+                self.resetHeadHpr()
+                self.stopLookAround()
+                self.playMovementSfx('run')
+            else:
+                self.resetHeadHpr()
+                self.startLookAround()
+                self.playMovementSfx(None)
         return task.cont
 
     def createLaffMeter(self):
-        r, g, b, a = self.getHeadColor()
+        r, g, b, _ = self.getHeadColor()
         animal = self.getAnimal()
         maxHp = self.getMaxHealth()
         hp = self.getHealth()
@@ -320,24 +553,35 @@ class LocalToon(DistributedToon):
     def deleteLaffMeter(self):
         self.laffMeter.delete()
 
+    def setLoadout(self, gagIds):
+        DistributedToon.setLoadout(self, gagIds)
+        if base.cr.playGame.getPlace() and base.cr.playGame.getPlace().fsm.getCurrentState().getName() == 'shtickerBook':
+            if hasattr(base.cr.playGame.getPlace(), 'shtickerBookStateData'):
+                if base.cr.playGame.getPlace().shtickerBookStateData.fsm.getCurrentState().getName() == 'inventoryPage':
+                    base.cr.playGame.getPlace().shtickerBookStateData.gui.fsm.request('idle')
+
     def enablePies(self, andKeys = 0):
         if self.avatarMovementEnabled and andKeys:
             self.enablePieKeys()
-        self.pieGui.createGui()
-        self.pieGui.setWeapon(self.pies.getPieTypeName(), playSound=False)
+        self.backpack = DistributedToon.getBackpack(self)
+        self.invGui = InventoryGui()
+        self.invGui.createGui()
+        self.invGui.setBackpack(self.backpack)
+        for gag in self.backpack.getGags():
+            gag.setAvatar(self)
+
+        self.backpack.setGagGUI(self.invGui)
+        if self.backpack.getCurrentGag():
+            self.invGui.setWeapon(self.backpack.getCurrentGag().getName(), playSound=False)
 
     def enablePieKeys(self):
-        if self.weaponType == 'pie':
-            if self.pieThrowBtn:
-                self.pieThrowBtn.bind(DGG.B1PRESS, self.startPie)
-                self.pieThrowBtn.bind(DGG.B1RELEASE, self.throwPie)
-            self.accept('delete', self.startPie)
-            self.accept('delete-up', self.throwPie)
-        elif self.weaponType == 'tnt':
-            if self.pies.tnt_state == 'ready':
-                if self.pieThrowBtn:
-                    self.pieThrowBtn.bind(DGG.B1RELEASE, self.startTNT)
-                self.acceptOnce('delete', self.startTNT)
+        if self.pieThrowBtn:
+            if not self.backpack:
+                self.backpack = DistributedToon.getBackpack(self)
+            self.pieThrowBtn.bind(DGG.B1PRESS, self.startGag)
+            self.pieThrowBtn.bind(DGG.B1RELEASE, self.throwGag)
+        self.accept('delete', self.startGag)
+        self.accept('delete-up', self.throwGag)
 
     def disablePieKeys(self):
         if self.pieThrowBtn:
@@ -348,7 +592,11 @@ class LocalToon(DistributedToon):
 
     def disablePies(self):
         self.disablePieKeys()
-        self.pieGui.deleteGui()
+        self.invGui.deleteGui()
+        if hasattr(self, 'backpack'):
+            if self.backpack:
+                self.backpack.setCurrentGag(None)
+        return
 
     def setWeaponType(self, weaponType):
         enableKeysAgain = 0
@@ -359,43 +607,9 @@ class LocalToon(DistributedToon):
             self.disablePieKeys()
             self.enablePieKeys()
 
-    def startTNT(self, foo = None):
-        if self.pies.getAmmo() > 0:
-            if self.pieThrowBtn:
-                self.pieThrowBtn.unbind(DGG.B1RELEASE)
-            self.resetHeadHpr()
-            self.b_tntStart()
-            Sequence(Wait(1.5), Func(self.releaseTNT)).start()
-
-    def releaseTNT(self):
-        if self.pies.getAmmo() > 0:
-            self.b_tntRelease()
-            self.pies.tntCollisions()
-            self.acceptOnce('tntSensor-into', self.handleTntCollisions)
-
-    def handleTntCollisions(self, entry):
-        if not self.pies.tnt:
-            return
-        self.b_tntHitGround()
-        x, y, z = self.pies.tnt.getPos(render)
-        self.sendUpdate('setTntPos', [x, y, z])
-        Sequence(Wait(2), Func(self.explodeTNT)).start()
-
-    def explodeTNT(self):
-        if not self.pies.tnt:
-            return
-        for obj in self.cr.doId2do.values():
-            if obj.__class__.__name__ == 'DistributedSuit':
-                if obj.getPlace() == self.zoneId:
-                    if obj.getDistance(self.pies.tnt) <= self.tntMaxDistance:
-                        self.sendUpdate('suitHitByPie', [obj.doId, 3])
-                        Sequence(Wait(0.1), Func(self.checkSuitHealth, obj)).start()
-
-        self.b_tntExplode()
-
     def createMoney(self):
         self.moneyGui.createGui()
-        self.moneyGui.update()
+        self.moneyGui.update(self.money)
 
     def handleMoneyChanged(self):
         self.moneyGui.update()
@@ -406,53 +620,50 @@ class LocalToon(DistributedToon):
     def resetHeadHpr(self):
         self.b_lookAtObject(0, 0, 0, blink=0)
 
-    def startPie(self, foo = None):
-        if self.pies.getAmmo() > 0:
+    def startGag(self, start = True):
+        if not self.backpack or not self.backpack.getCurrentGag():
+            return
+        if self.backpack.getSupply() > 0:
             if self.pieThrowBtn:
                 self.pieThrowBtn.unbind(DGG.B1PRESS)
+            if self.backpack.getActiveGag():
+                if self.backpack.getActiveGag().getState() != GagState.LOADED:
+                    return
             self.ignore('delete')
-            self.pieType = self.pies.getPieType()
+            self.backpack.getCurrentGag().setAvatar(self)
             self.resetHeadHpr()
-            self.b_pieStart()
-            self.pies.pieCollisions()
+            self.b_gagStart(self.backpack.getCurrentGag().getID())
 
-    def throwPie(self, foo = None):
-        if self.pies.getAmmo() > 0:
+    def throwGag(self, start = True):
+        if not self.backpack or not self.backpack.getCurrentGag() or not self.backpack.getActiveGag():
+            return
+        if self.backpack.getSupply() > 0:
             if self.pieThrowBtn:
                 self.pieThrowBtn.unbind(DGG.B1RELEASE)
             self.ignore('delete-up')
-            self.b_pieThrow()
-            Sequence(Wait(0.75), Func(self.releasePie), Wait(0.3), Func(self.enablePieKeys)).start()
+            if self.backpack.getActiveGag().getType() == GagType.SQUIRT and self.backpack.getActiveGag().getName() == CIGlobals.SeltzerBottle:
+                self.b_gagRelease(self.backpack.getActiveGag().getID())
+            else:
+                self.b_gagThrow(self.backpack.getActiveGag().getID())
+            activeGag = self.backpack.getActiveGag()
+            if not activeGag:
+                activeGag = self.backpack.getCurrentGag()
+            if not activeGag.doesAutoRelease():
+                Sequence(Wait(0.75), Func(self.releaseGag), Wait(0.3), Func(self.enablePieKeys)).start()
 
-    def releasePie(self):
-        if self.pies.getAmmo() > 0:
-            self.acceptOnce('pieSensor-into', self.handlePieCollisions)
-            self.b_pieRelease()
-
-    def handlePieCollisions(self, entry):
-        if self.pies.pie_state == 'start':
+    def releaseGag(self):
+        if not self.backpack or not self.backpack.getActiveGag():
             return
-        else:
-            intoNP = entry.getIntoNodePath()
-            avNP = intoNP.getParent()
-            for key in self.cr.doId2do.keys():
-                obj = self.cr.doId2do[key]
-                if obj.__class__.__name__ == 'DistributedSuit':
-                    if obj.getKey() == avNP.getKey():
-                        if obj.getHealth() > 0:
-                            self.sendUpdate('suitHitByPie', [obj.doId, self.pieType])
-                elif obj.__class__.__name__ == 'DistributedToon':
-                    if obj.getKey() == avNP.getKey():
-                        if obj.getHealth() < obj.getMaxHealth() and not obj.isDead():
-                            self.sendUpdate('toonHitByPie', [obj.doId, self.pieType])
-
-            self.pieType = None
-            self.b_pieSplat()
-            return
+        if self.backpack.getSupply() > 0:
+            gag = self.backpack.getActiveGag()
+            if not gag:
+                gag = self.backpack.getCurrentGag()
+            if gag.getState() != GagState.RELEASED:
+                gagName = gag.getName()
+                self.b_gagRelease(GagGlobals.getIDByName(gagName))
 
     def checkSuitHealth(self, suit):
-        if suit.getHealth() <= 0:
-            self.sendUpdate('suitKilled', [suit.doId])
+        pass
 
     def handleLookSpot(self, hpr):
         h, p, r = hpr
@@ -493,76 +704,68 @@ class LocalToon(DistributedToon):
         else:
             base.cr.playGame.getPlace().shtickerBookStateData.finished('resume')
 
-    def handleHitByWeapon(self, attack, suit):
-        taskMgr.remove('fallDone')
-        if attack == 'canned':
-            sfx = base.loadSfx('phase_5/audio/sfx/SA_canned_impact_only.mp3')
-            SoundInterval(sfx).start()
-        elif attack == 'playhardball':
-            sfx = base.loadSfx('phase_5/audio/sfx/SA_hardball_impact_only_alt.mp3')
-            SoundInterval(sfx).start()
-        elif attack == 'clipontie':
-            sfx = base.loadSfx('phase_5/audio/sfx/SA_powertie_impact.mp3')
-            SoundInterval(sfx).start()
-        self.b_lookAtObject(0, 0, 0, blink=1)
-        self.cr.playGame.getPlace().fsm.request('stop')
-        if not self.isDead():
-            animToPlay = None
-            timeToWait = 3.0
-            if attack not in ('pickpocket', 'fountainpen'):
-                suitH = suit.getH(render) % 360
-                myH = self.getH(render) % 360
-                if -90.0 <= suitH - myH <= 90.0:
-                    animToPlay = 'fallFWD'
-                else:
-                    animToPlay = 'fallBCK'
-            elif attack in ('pickpocket',):
-                animToPlay = 'cringe'
-            elif attack in ('fountainpen',):
-                animToPlay = 'conked'
-                timeToWait = 5.0
-                self.getPart('head').setColorScale(0, 0, 0, 1)
-                taskMgr.doMethodLater(3.0, self.resetHeadColor, 'resetHeadColorAfterFountainPen')
-            self.b_setAnimState(animToPlay)
-            taskMgr.doMethodLater(timeToWait, self.fallDone, 'fallDone')
-        return
-
-    def resetHeadColor(self, task):
-        self.getPart('head').setColorScale(1, 1, 1, 1)
-        return task.done
-
     def startMonitoringHP(self):
         taskMgr.add(self.monitorHealth, 'localToon-monitorHealth')
 
     def monitorHealth(self, task):
         if self.isDead():
-            taskMgr.remove('fallDone')
-            self.cr.playGame.getPlace().fsm.request('died', [{}, self.diedStateDone])
+            base.taskMgr.remove('LT.attackReactionDone')
+            if self.cr.playGame.hood.id != ZoneUtil.getHoodId(self.zoneId):
+                self.cr.playGame.getPlace().fsm.request('died', [{}, self.diedStateDone])
             return task.done
         return task.cont
 
     def stopMonitoringHP(self):
         taskMgr.remove('localToon-monitorHealth')
 
-    def diedStateDone(self, requestStatus):
-        zone = CIGlobals.RecoverAreaId
-        doneStatus = {}
-        doneStatus['mode'] = 'teleport'
-        doneStatus['zoneId'] = zone
-        doneStatus['hoodId'] = ZoneUtil.getHoodId(zone)
-        doneStatus['where'] = ZoneUtil.getWhereName(zone)
-        doneStatus['how'] = 'teleportIn'
-        doneStatus['avId'] = base.localAvatar.doId
-        doneStatus['shardId'] = None
-        doneStatus['loader'] = ZoneUtil.getLoaderName(zone)
-        self.cr.playGame.getPlace().doneStatus = doneStatus
-        messenger.send(self.cr.playGame.getPlace().doneEvent)
+    def setHealth(self, hp):
+        if hp > 0 and self.getHealth() < 1:
+            if self.cr.playGame.getPlace():
+                if self.cr.playGame.getPlace().fsm.getCurrentState().getName() == 'walk':
+                    if self.cr.playGame.getPlace().walkStateData.fsm.getCurrentState().getName() == 'deadWalking':
+                        self.cr.playGame.getPlace().walkStateData.fsm.request('walking')
+            if self.animFSM.getCurrentState().getName() == 'deadNeutral':
+                self.playMovementSfx(None)
+                self.b_setAnimState('neutral')
+            elif self.animFSM.getCurrentState().getName() == 'deadWalk':
+                self.playMovementSfx('run')
+                self.b_setAnimState('run')
+        DistributedToon.setHealth(self, hp)
         return
 
-    def fallDone(self, task):
-        self.cr.playGame.hood.loader.place.fsm.request('walk')
-        self.b_setAnimState('neutral')
-        return task.done
+    def diedStateDone(self, requestStatus):
+        hood = self.cr.playGame.hood.id
+        if hood == CIGlobals.BattleTTC:
+            hood = CIGlobals.ToontownCentral
+        toZone = ZoneUtil.getZoneId(hood)
+        if self.zoneId != toZone:
+            requestStatus = {'zoneId': toZone,
+             'hoodId': hood,
+             'where': ZoneUtil.getWhereName(toZone),
+             'avId': self.doId,
+             'loader': ZoneUtil.getLoaderName(toZone),
+             'shardId': None,
+             'wantLaffMeter': 1,
+             'how': 'teleportIn'}
+            self.cr.playGame.getPlace().doneStatus = requestStatus
+            messenger.send(self.cr.playGame.getPlace().doneEvent)
+        else:
+            return
+        return
+
+    def teleportToCT(self):
+        toZone = CIGlobals.CogTropolisId
+        hood = CIGlobals.CogTropolis
+        requestStatus = {'zoneId': toZone,
+         'hoodId': hood,
+         'where': ZoneUtil.getWhereName(toZone),
+         'avId': self.doId,
+         'loader': ZoneUtil.getLoaderName(toZone),
+         'shardId': None,
+         'wantLaffMeter': 1,
+         'how': 'teleportIn'}
+        self.cr.playGame.getPlace().fsm.request('teleportOut', [requestStatus])
+        return
 
     def createChatInput(self):
         self.chatInput.load()
@@ -586,26 +789,34 @@ class LocalToon(DistributedToon):
         self.deleteLaffMeter()
 
     def disable(self):
+        base.camLens.setMinFov(CIGlobals.OriginalCameraFov / (4.0 / 3.0))
+        self.friendsList.destroy()
+        self.friendsList = None
+        self.positionExaminer.delete()
+        self.positionExaminer = None
+        self.disablePicking()
         self.stopMonitoringHP()
         taskMgr.remove('resetHeadColorAfterFountainPen')
-        taskMgr.remove('fallDone')
+        taskMgr.remove('LT.attackReactionDone')
+        self.stopLookAround()
         DistributedToon.disable(self)
         self.disableAvatarControls()
         self.disableLaffMeter()
         self.disablePies()
         self.disableChatInput()
-        self.stopLookAround()
         self.weaponType = None
         self.pieType = None
+        self.myBattle = None
         self.ignore('gotLookSpot')
         return
 
     def announceGenerate(self):
         DistributedToon.announceGenerate(self)
+        self.setupPicker()
         self.setupControls()
-        self.createChatInput()
         self.startLookAround()
+        self.friendRequestManager.watch()
         self.accept('gotLookSpot', self.handleLookSpot)
 
     def printAvPos(self):
-        print self.getPos(render)
+        print 'Pos: %s, Hpr: %s' % (self.getPos(), self.getHpr())

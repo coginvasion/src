@@ -80,17 +80,20 @@ class AdminPage(StateData):
         self.infoLbl = OnscreenText(text='Type the ID of the player you want to boot out.', pos=(0, 0.45))
         self.idEntry = DirectEntry(width=10, scale=0.12, pos=(-0.59, 0, 0.15), command=self.sendKickMessage, focusInCommand=base.localAvatar.chatInput.disableKeyboardShortcuts, focusOutCommand=base.localAvatar.chatInput.enableKeyboardShortcuts)
         self.kickBtn = DirectButton(geom=geom, text_scale=0.04, relief=None, scale=1.0, text='Kick', pos=(0, 0, -0.15), text_pos=(0, -0.01), command=self.sendKickMessage)
+        self.banBtn = DirectButton(geom=geom, text_scale=0.04, relief=None, scale=1.0, text='Ban', pos=(0, 0, -0.25), text_pos=(0, -0.01), command=self.sendKickMessage, extraArgs=[None, 1])
         self.cancelBtn = DirectButton(geom=geom, text_scale=0.04, relief=None, scale=1.0, text='Cancel', pos=(-0.45, 0.15, -0.45), text_pos=(0, -0.01), command=self.fsm.request, extraArgs=['basePage'])
         return
 
-    def sendKickMessage(self, foo = None):
+    def sendKickMessage(self, foo = None, andBan = 0):
         if self.idEntry.get().isspace() or len(self.idEntry.get()) == 0:
             return
         print 'Sending out kick request for avatar id: ' + str(self.idEntry.get())
-        base.localAvatar.sendUpdate('requestEject', [int(self.idEntry.get())])
+        base.localAvatar.sendUpdate('requestEject', [int(self.idEntry.get()), andBan])
         self.fsm.request('basePage')
 
     def exitKickSection(self):
+        self.banBtn.destroy()
+        del self.banBtn
         self.infoLbl.destroy()
         del self.infoLbl
         self.cancelBtn.destroy()

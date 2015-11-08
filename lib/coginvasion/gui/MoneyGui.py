@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.gui.MoneyGui
 """
-  
+
   Filename: MoneyGui.py
-  Created by: blach (6Aug14)
-  
+  Created by: blach (06Aug14)
+
 """
 from panda3d.core import *
 from direct.gui.DirectGui import *
@@ -16,7 +16,7 @@ class MoneyGui:
         gui = loader.loadModel('phase_3.5/models/gui/jar_gui.bam')
         self.jar = OnscreenImage(image=gui, scale=0.5, parent=self.frame)
         mf = loader.loadFont('phase_3/models/fonts/MickeyFont.bam')
-        self.money_lbl = DirectLabel(text=str(base.localAvatar.getMoney()), text_font=mf, text_fg=(1, 1, 0, 1), parent=self.jar, text_scale=0.2, relief=None, pos=(0, 0, -0.1))
+        self.money_lbl = DirectLabel(text='', text_font=mf, text_fg=(1, 1, 0, 1), parent=self.jar, text_scale=0.2, relief=None, pos=(0, 0, -0.1))
         gui.remove_node()
         return
 
@@ -31,10 +31,10 @@ class MoneyGui:
             self.frame.destroy()
             del self.frame
 
-    def update(self):
+    def update(self, moneyAmt):
         if hasattr(self, 'money_lbl'):
-            if base.localAvatar.getMoney() <= 0:
+            if moneyAmt <= 0:
                 self.money_lbl['text_fg'] = (0.9, 0, 0, 1)
             else:
                 self.money_lbl['text_fg'] = (1, 1, 0, 1)
-            self.money_lbl['text'] = str(base.localAvatar.getMoney())
+            self.money_lbl['text'] = str(moneyAmt)

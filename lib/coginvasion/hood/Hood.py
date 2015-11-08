@@ -35,14 +35,28 @@ class Hood(StateData):
         StateData.enter(self)
         hoodId = requestStatus['hoodId']
         zoneId = requestStatus['zoneId']
+        rootZone = ZoneUtil.getZoneId(hoodId)
+        if base.localAvatar.getLastHood() != rootZone and hoodId != CIGlobals.MinigameArea:
+            base.localAvatar.b_setLastHood(rootZone)
+        if not base.localAvatar.hasDiscoveredHood(rootZone):
+            hoodsDiscovered = list(base.localAvatar.getHoodsDiscovered())
+            hoodsDiscovered.append(rootZone)
+            base.localAvatar.b_setHoodsDiscovered(hoodsDiscovered)
         text = self.getHoodText(zoneId)
         self.titleText = OnscreenText(text, fg=self.titleColor, font=CIGlobals.getMickeyFont(), scale=0.15, pos=(0, -0.65))
         self.titleText.hide()
+
+    def enterTheLoader(self, requestStatus):
         self.fsm.request(requestStatus['loader'], [requestStatus])
 
     def getHoodText(self, zoneId):
-        hoodText = self.id
-        hoodText += '\n' + ZoneUtil.getWhereName(zoneId).upper()
+        if ZoneUtil.getWhereName(zoneId) == 'street' and zoneId < 61000:
+            hoodText = CIGlobals.BranchZone2StreetName[ZoneUtil.getBranchZone(zoneId)]
+            hoodText += '\n' + self.id
+        else:
+            hoodText = self.id
+            if self.id != CIGlobals.MinigameArea:
+                hoodText += '\n' + ZoneUtil.getWhereName(zoneId).upper()
         return hoodText
 
     def spawnTitleText(self, zoneId):
@@ -83,7 +97,7 @@ class Hood(StateData):
             del self.loader
         del self.parentFSM
         del self.fsm
-        self.dnaStore.resetHood()
+        self.dnaStore.resetAll()
         del self.dnaStore
         self.deleteCurrentSky()
         self.stopSuitEffect(0)
@@ -102,19 +116,23 @@ class Hood(StateData):
         return status['hoodId'] == self.hoodId and status['shardId'] == None
 
     def enterQuietZone(self, requestStatus):
+        base.transitions.noTransitions()
+        loaderName = requestStatus['loader']
+        if loaderName == 'safeZoneLoader' or loaderName == 'townLoader':
+            if not loader.inBulkBlock:
+                loader.beginBulkLoad('hood', self.id, CIGlobals.safeZoneLSRanges.get(self.id, 6))
+            self.loadLoader(requestStatus)
+        else:
+            base.transitions.fadeScreen(1.0)
         self._quietZoneDoneEvent = uniqueName('quietZoneDone')
         self.acceptOnce(self._quietZoneDoneEvent, self.handleQuietZoneDone)
         self.quietZoneStateData = QuietZoneState(self._quietZoneDoneEvent)
-        self._enterWaitForSetZoneResponseMsg = self.quietZoneStateData.getEnterWaitForSetZoneResponseMsg()
-        self.acceptOnce(self._enterWaitForSetZoneResponseMsg, self.handleWaitForSetZoneResponse)
         self.quietZoneStateData.load()
         self.quietZoneStateData.enter(requestStatus)
 
     def exitQuietZone(self):
         self.ignore(self._quietZoneDoneEvent)
-        self.ignore(self._enterWaitForSetZoneResponseMsg)
         del self._quietZoneDoneEvent
-        del self._enterWaitForSetZoneResponseMsg
         self.quietZoneStateData.exit()
         self.quietZoneStateData.unload()
         self.quietZoneStateData = None
@@ -123,17 +141,12 @@ class Hood(StateData):
     def loadLoader(self, requestStatus):
         pass
 
-    def handleWaitForSetZoneResponse(self, requestStatus):
-        loaderName = requestStatus['loader']
-        if loaderName == 'safeZoneLoader':
-            if not loader.inBulkBlock:
-                loader.beginBulkLoad('hood', self.id, CIGlobals.safeZoneLSRanges[self.id])
-            self.loadLoader(requestStatus)
-            loader.endBulkLoad('hood')
-
     def handleQuietZoneDone(self):
         status = self.quietZoneStateData.getDoneStatus()
+        loader.endBulkLoad('hood')
         self.fsm.request(status['loader'], [status])
+        if hasattr(self, 'loader'):
+            self.loader.enterThePlace(status)
 
     def enterSafeZoneLoader(self, requestStatus):
         self.accept(self.loaderDoneEvent, self.handleSafeZoneLoaderDone)
@@ -149,7 +162,6 @@ class Hood(StateData):
 
     def handleSafeZoneLoaderDone(self):
         doneStatus = self.loader.getDoneStatus()
-        print self.isSameHood(doneStatus)
         if self.isSameHood(doneStatus) or doneStatus['where'] == 'minigame':
             self.fsm.request('quietZone', [doneStatus])
         else:
@@ -159,8 +171,11 @@ class Hood(StateData):
     def createNormalSky(self):
         self.deleteCurrentSky()
         self.sky = loader.loadModel(self.skyFilename)
-        self.sky.setScale(1.0)
-        self.sky.setFogOff()
+        if self.__class__.__name__ != 'CTHood':
+            self.sky.setScale(1.0)
+            self.sky.setFogOff()
+        else:
+            self.sky.setScale(5.0)
 
     def createSpookySky(self):
         self.deleteCurrentSky()

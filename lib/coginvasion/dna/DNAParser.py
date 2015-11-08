@@ -128,6 +128,21 @@ def wl(file, ilevel, string):
     file.write('\t' * ilevel + string + '\n')
 
 
+class DNABulkLoader():
+
+    def __init__(self, storage, files):
+        self.dnaStorage = storage
+        self.dnaFiles = files
+
+    def loadDNAFiles(self):
+        for file in self.dnaFiles:
+            print 'Reading DNA file...', file
+            loadDNABulk(self.dnaStorage, file)
+
+        del self.dnaStorage
+        del self.dnaFiles
+
+
 class DNAError(Exception):
     pass
 
@@ -153,6 +168,21 @@ class DNAStorage():
         self.blockZones = {}
         self.textures = {}
         self.catalogCodes = {}
+
+    def resetAll(self):
+        self.resetHood()
+        self.resetFonts()
+        self.resetNodes()
+        self.resetTextures()
+        self.resetDNAGroups()
+        self.resetHoodNodes()
+        self.resetPlaceNodes()
+        self.resetSuitPoints()
+        self.resetBlockZones()
+        self.resetBattleCells()
+        self.resetDNAVisGroups()
+        self.resetDNAVisGroupsAI()
+        self.resetBlockNumbers()
 
     def getSuitPath(self, startPoint, endPoint, minPathLen = 40, maxPathLen = 300):
         points = [startPoint]
@@ -241,6 +271,11 @@ class DNAStorage():
 
     def getDNAVisGroupName(self, i):
         return self.DNAVisGroups[i].getName()
+
+    def printAllDNAVisGroupNames(self):
+        for vis in self.DNAVisGroups:
+            print vis.getName()
+            print base.cr.playGame.hood.loader.geom.find('**/*' + vis.getName() + '*')
 
     def storeDNAVisGroup(self, group):
         self.DNAVisGroups.append(group)
@@ -1015,7 +1050,7 @@ class DNAFlatBuilding(DNANode):
                 child.traverse(node, dnaStorage)
 
         if DNAFlatBuilding.currentWallHeight == 0:
-            print 'empty flat building with no walls'
+            pass
         else:
             cameraBarrier = dnaStorage.findNode('wall_camera_barrier')
             if cameraBarrier is None:
@@ -2511,6 +2546,13 @@ def p_error(p):
         raise DNAError('Syntax error unexpected EOF')
     raise DNAError('Syntax error at line ' + str(p.lexer.lineno) + ' token=' + str(p))
     return
+
+
+def loadDNABulk(dnaStorage, filename):
+    dnaLoader = DNALoader()
+    dnaLoader.getData().setDnaStorage(dnaStorage)
+    filename = filename
+    dnaLoader.getData().read(open(filename, 'r'))
 
 
 def loadDNAFile(dnaStore, filename):

@@ -40,6 +40,7 @@ class PickAToon:
      Point3(0.27, 0, -0.21),
      Point3(0.3, 0, -0.18),
      Point3(0.21, 0, -0.23)]
+    BgColor = (0.1450980392156863, 0.3686274509803922, 0.7803921568627451)
 
     def __init__(self, avChooser):
         self.title = None
@@ -55,6 +56,7 @@ class PickAToon:
         self.trash_gui = loader.loadModel('phase_3/models/gui/trashcan_gui.bam')
         self.bg_img = OnscreenImage(image=self.bg.find('**/tt_t_gui_pat_background'))
         self.setTitle('Pick  A  Toon  To  Play')
+        base.setBackgroundColor(self.BgColor)
         self.btn1 = DirectButton(geom=self.bg.find('**/tt_t_gui_pat_squareGreen'), relief=None, pos=(0.012, 0, 0.306), text_wordwrap=6, text_fg=(1, 1, 1, 1))
         self.btn2 = DirectButton(geom=self.bg.find('**/tt_t_gui_pat_squarePink'), relief=None, pos=(0.01, 0, -0.515), text_wordwrap=6, text_fg=(1, 1, 1, 1))
         self.btn3 = DirectButton(geom=self.bg.find('**/tt_t_gui_pat_squareRed'), relief=None, pos=(-0.84, 0, 0.36), text_wordwrap=6, text_fg=(1, 1, 1, 1))
@@ -82,13 +84,14 @@ class PickAToon:
                 toon = ToonHead(base.cr)
                 self.headList.append(toon)
                 gender, animal, head, headcolor = self.avChooser.getHeadInfo(slot)
-                toon.generateHead(gender, animal, head)
+                toon.generateHead(gender, animal, head, 1)
+                toon.getGeomNode().setDepthWrite(1)
+                toon.getGeomNode().setDepthTest(1)
                 toon.startBlink()
                 toon.startLookAround()
                 toon.reparentTo(headframe)
-                toon.getGeomNode().setDepthWrite(1)
-                toon.getGeomNode().setDepthTest(1)
                 toon.setHeadColor(headcolor)
+                toon.flattenLight()
                 name_lbl = DirectLabel(text=self.avChooser.getNameInSlot(slot), text_scale=0.08, text_fg=(1, 1, 1, 1), text_wordwrap=7, relief=None, text_shadow=(0, 0, 0, 1))
                 name_lbl.reparentTo(self.btnList[slot].stateNodePath[0], 20)
                 name_lbl.instanceTo(self.btnList[slot].stateNodePath[1], 20)
@@ -199,4 +202,5 @@ class PickAToon:
         for button in range(6):
             self.btnList[button].removeNode()
 
+        base.setBackgroundColor(CIGlobals.DefaultBackgroundColor)
         base.transitions.fadeIn(0)

@@ -1,10 +1,4 @@
 # Embedded file name: lib.coginvasion.hood.TTPlayground
-"""
-
-  Filename: TTPlayground.py
-  Created by: blach (14Dec14)
-
-"""
 import Playground
 from direct.directnotify.DirectNotifyGlobal import directNotify
 from direct.interval.SoundInterval import SoundInterval

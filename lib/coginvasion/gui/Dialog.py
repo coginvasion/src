@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.gui.Dialog
 """
-  
+
   Filename: Dialog.py
-  Created by: blach (5Nov14)
-  
+  Created by: blach (05Nov14)
+
 """
 from direct.gui.DirectGui import *
 from lib.coginvasion.globals import CIGlobals
@@ -75,10 +75,14 @@ class Dialog(DirectDialog):
 class GlobalDialog(Dialog):
     notify = directNotify.newCategory('GlobalDialog')
 
-    def __init__(self, message = '', doneEvent = None, style = NoButtons, okButtonText = CIGlobals.DialogOk, cancelButtonText = CIGlobals.DialogCancel, **kw):
+    def __init__(self, message = '', doneEvent = None, style = NoButtons, okButtonText = CIGlobals.DialogOk, cancelButtonText = CIGlobals.DialogCancel, extraArgs = [], **kw):
+        self.extraArgs = extraArgs
         if doneEvent == None and style != NoButtons:
             self.notify.error('You must specify a doneEvent on a dialog with buttons.')
         self.__doneEvent = doneEvent
+        if style == YesNo:
+            okButtonText = CIGlobals.DialogYes
+            cancelButtonText = CIGlobals.DialogNo
         if style == NoButtons:
             buttonText = []
         elif style == Ok:
@@ -99,10 +103,10 @@ class GlobalDialog(Dialog):
     def handleButton(self, value):
         if value == DGG.DIALOG_OK:
             self.doneStatus = 'ok'
-            messenger.send(self.__doneEvent)
+            messenger.send(self.__doneEvent, self.extraArgs)
         elif value == DGG.DIALOG_CANCEL:
             self.doneStatus = 'cancel'
-            messenger.send(self.__doneEvent)
+            messenger.send(self.__doneEvent, self.extraArgs)
 
     def getValue(self):
         if self.doneStatus == 'ok':

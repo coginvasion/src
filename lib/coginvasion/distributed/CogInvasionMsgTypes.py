@@ -2,7 +2,7 @@
 """
   
   Filename: CogInvasionMsgTypes.py
-  Created by: blach (7Nov14)
+  Created by: blach (07Nov14)
   
 """
 from direct.distributed.MsgTypes import *

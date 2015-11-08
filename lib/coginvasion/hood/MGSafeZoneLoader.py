@@ -2,7 +2,7 @@
 """
 
   Filename: MGSafeZoneLoader.py
-  Created by: blach (5Jan15)
+  Created by: blach (05Jan15)
 
 """
 from pandac.PandaModules import *
@@ -21,23 +21,8 @@ class MGSafeZoneLoader(SafeZoneLoader.SafeZoneLoader):
         self.interiorMusicFilename = None
         self.battleMusicFile = None
         self.invasionMusicFiles = None
+        self.tournamentMusicFiles = None
         self.bossBattleMusicFile = None
         self.dnaFile = 'phase_13/dna/party_sz.dna'
         self.szStorageDNAFile = 'phase_13/dna/storage_party_sz.dna'
         return
-
-    def load(self):
-        SafeZoneLoader.SafeZoneLoader.load(self)
-
-    def unload(self):
-        SafeZoneLoader.SafeZoneLoader.unload(self)
-
-    def enter(self, requestStatus):
-        SafeZoneLoader.SafeZoneLoader.enter(self, requestStatus)
-
-    def exit(self):
-        """
-        render.clearLight(self.light)
-        render.clearLight(self.amb)
-        """
-        SafeZoneLoader.SafeZoneLoader.exit(self)

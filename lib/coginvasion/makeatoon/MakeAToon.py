@@ -3,7 +3,7 @@
 
   Filename: MakeAToon.py
   Created by: blach (??July14)
-  
+
 """
 from lib.coginvasion.globals import CIGlobals
 from lib.coginvasion.makeatoon.ToonGenerator import ToonGenerator
@@ -15,6 +15,7 @@ from direct.showbase.Transitions import Transitions
 from direct.fsm.ClassicFSM import ClassicFSM
 from direct.fsm.State import State
 from direct.interval.IntervalGlobal import *
+from lib.coginvasion.gui import Dialog
 import sys
 import random
 it = loader.loadFont('phase_3/models/fonts/ImpressBT.ttf')
@@ -28,6 +29,7 @@ prevShops = {'body': 'gender',
  'name': 'cloth'}
 
 class MakeAToon:
+    MSG_BADNAME = 'Sorry, that name will not work.'
 
     def __init__(self):
         self.toonMade = 0
@@ -78,6 +80,7 @@ class MakeAToon:
         pass
 
     def loadEnviron(self):
+        base.camLens.setFov(CIGlobals.OriginalCameraFov)
         camera.setPos(-4.77, -17.47, 3.3)
         camera.setH(344.05)
         self.mat_gui = loader.loadModel('phase_3/models/gui/tt_m_gui_mat_mainGui.bam')
@@ -152,8 +155,18 @@ class MakeAToon:
     def exitMakeAToon(self, direction):
         self.matFSM.request('exit', enterArgList=[direction])
 
-    def finishedMakeAToon(self, textEntered):
+    def finishedMakeAToon(self, textEntered = None):
+        self.toonName = self.nameEntry.get()
+        if self.toonName.isspace() or len(self.toonName) == 0:
+            self.badNameDialog = Dialog.GlobalDialog(message=self.MSG_BADNAME, doneEvent='badNameAck', style=Dialog.Ok)
+            base.acceptOnce('badNameAck', self.__handleBadNameAck)
+            self.badNameDialog.show()
+            return
         self.__handleExit('finished')
+
+    def __handleBadNameAck(self):
+        self.badNameDialog.cleanup()
+        del self.badNameDialog
 
     def isAvailable(self):
         return True
@@ -208,7 +221,7 @@ class MakeAToon:
         self.okBtn = DirectButton(text=('', 'Ready', 'Ready', ''), text_scale=0.08, text_shadow=(0, 0, 0, 1), text_fg=(1, 1, 1, 1), text_pos=(0, 0.115), geom=(self.mat_gui.find('**/tt_t_gui_mat_okUp'),
          self.mat_gui.find('**/tt_t_gui_mat_okDown'),
          self.mat_gui.find('**/tt_t_gui_mat_okUp'),
-         self.mat_gui.find('**/tt_t_gui_mat_okUp')), geom3_color=(0.6, 0.6, 0.6, 0.6), relief=None, pos=(-0.2, 0.2, 0.2), geom0_scale=0.6, geom1_scale=0.65, geom2_scale=0.65, geom3_scale=0.6, command=self.__handleExit, extraArgs=['finished'], parent=base.a2dBottomRight)
+         self.mat_gui.find('**/tt_t_gui_mat_okUp')), geom3_color=(0.6, 0.6, 0.6, 0.6), relief=None, pos=(-0.2, 0.2, 0.2), geom0_scale=0.6, geom1_scale=0.65, geom2_scale=0.65, geom3_scale=0.6, command=self.finishedMakeAToon, parent=base.a2dBottomRight)
         self.okBtn.hide()
         self.okBtn.setBin('gui-popup', 60)
         self.nextBtn = DirectButton(text=('', 'Next', 'Next', ''), text_scale=0.08, text_shadow=(0, 0, 0, 1), text_fg=(1, 1, 1, 1), text_pos=(0, 0.115), geom=(self.mat_gui.find('**/tt_t_gui_mat_nextUp'),
@@ -243,10 +256,12 @@ class MakeAToon:
         self.nameRoom.reparentTo(hidden)
         self.namePanel.setX(0)
         self.namePanel.reparentTo(hidden)
-        self.toonName = self.nameEntry.get()
         self.nameEntry.destroy()
         del self.nameEntry
         self.toonGen.setToonPosForGeneralShop()
+        if hasattr(self, 'badNameDialog'):
+            self.badNameDialog.cleanup()
+            del self.badNameDialog
 
     def enterGenderShop(self):
         self.nextBtn.show()
@@ -800,6 +815,7 @@ class MakeAToon:
             self.music.stop()
             del self.music
             del self.toonGen
+            base.camLens.setMinFov(CIGlobals.DefaultCameraFov / (4.0 / 3.0))
             return
 
     def exitExit(self):

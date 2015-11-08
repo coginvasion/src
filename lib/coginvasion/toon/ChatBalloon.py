@@ -2,7 +2,7 @@
 """
   
   Filename: ChatBalloon.py
-  Created by: blach (9July14)
+  Created by: blach (09July14)
   
 """
 from pandac.PandaModules import *

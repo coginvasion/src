@@ -15,7 +15,7 @@ class Walk(StateData):
 
     def __init__(self, doneEvent):
         StateData.__init__(self, doneEvent)
-        self.fsm = ClassicFSM('Walk', [State('off', self.enterOff, self.exitOff, ['walking']), State('walking', self.enterWalking, self.exitWalking)], 'off', 'off')
+        self.fsm = ClassicFSM('Walk', [State('off', self.enterOff, self.exitOff, ['walking', 'deadWalking']), State('walking', self.enterWalking, self.exitWalking), State('deadWalking', self.enterDeadWalking, self.exitDeadWalking)], 'off', 'off')
         self.fsm.enterInitialState()
 
     def load(self):
@@ -26,15 +26,18 @@ class Walk(StateData):
 
     def enter(self):
         base.localAvatar.startPosHprBroadcast()
+        base.localAvatar.d_broadcastPositionNow()
         base.localAvatar.startBlink()
         base.localAvatar.attachCamera()
         base.localAvatar.startSmartCamera()
         base.localAvatar.collisionsOn()
         base.localAvatar.enableAvatarControls()
-        base.localAvatar.b_setAnimState('neutral')
+        base.localAvatar.enablePicking()
 
     def exit(self):
+        base.localAvatar.lastState = None
         self.fsm.request('off')
+        base.localAvatar.enablePicking()
         base.localAvatar.disableAvatarControls()
         base.localAvatar.detachCamera()
         base.localAvatar.stopSmartCamera()
@@ -42,6 +45,7 @@ class Walk(StateData):
         base.localAvatar.stopBlink()
         base.localAvatar.collisionsOff()
         base.localAvatar.controlManager.placeOnFloor()
+        return
 
     def enterOff(self):
         pass
@@ -50,7 +54,26 @@ class Walk(StateData):
         pass
 
     def enterWalking(self):
-        base.localAvatar.setWalkSpeedNormal()
+        if base.localAvatar.getHealth() > 0:
+            base.localAvatar.startTrackAnimToSpeed()
+            base.localAvatar.setWalkSpeedNormal()
+        else:
+            self.fsm.request('deadWalking')
 
-    def exitWalking(slef):
-        pass
+    def exitWalking(self):
+        base.localAvatar.stopTrackAnimToSpeed()
+
+    def enterDeadWalking(self):
+        base.localAvatar.startTrackAnimToSpeed()
+        base.localAvatar.setWalkSpeedSlow()
+        base.taskMgr.add(self.__watchForPositiveHP, base.localAvatar.uniqueName('watchforPositiveHP'))
+
+    def __watchForPositiveHP(self, task):
+        if base.localAvatar.getHealth() > 0:
+            self.fsm.request('walking')
+            return task.done
+        return task.cont
+
+    def exitDeadWalking(self):
+        base.taskMgr.remove(base.localAvatar.uniqueName('watchforPositiveHP'))
+        base.localAvatar.stopTrackAnimToSpeed()

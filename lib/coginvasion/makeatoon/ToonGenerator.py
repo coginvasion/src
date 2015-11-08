@@ -175,7 +175,6 @@ class ToonGenerator:
             return None
         else:
             currentAnimal = int(self.toon.animal2animalDNA[self.toon.animal])
-            print 'new animal next: %s' % str(currentAnimal + 1)
             return '0' + str(currentAnimal + 1)
             return None
 
@@ -186,7 +185,6 @@ class ToonGenerator:
             return None
         else:
             currentAnimal = int(self.toon.animal2animalDNA[self.toon.animal])
-            print 'new animal prev: %s' % str(currentAnimal - 1)
             return '0' + str(currentAnimal - 1)
             return None
 
@@ -312,7 +310,7 @@ class ToonGenerator:
                 return '00'
             else:
                 currentShorts = int(self.toon.short2shortDNA[self.toon.shorts])
-                if currentShorts < 11:
+                if currentShorts < 9:
                     return '0' + str(currentShorts + 1)
                 return str(currentShorts + 1)
         else:
@@ -325,7 +323,7 @@ class ToonGenerator:
                 return '16'
             else:
                 currentShorts = int(self.toon.short2shortDNA[self.toon.shorts])
-                if currentShorts < 9:
+                if currentShorts < 11:
                     return '0' + str(currentShorts - 1)
                 return str(currentShorts - 1)
         else:
@@ -334,7 +332,6 @@ class ToonGenerator:
 
     def generateDNAStrandWithCurrentStyle(self):
         self.currentAnimFrame = self.toon.getCurrentFrame()
-        print self.currentAnimFrame
         self.toon.generateDNAStrandWithCurrentStyle()
         self.createToon()
 

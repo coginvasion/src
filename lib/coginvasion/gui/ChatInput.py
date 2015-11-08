@@ -1,9 +1,9 @@
 # Embedded file name: lib.coginvasion.gui.ChatInput
 """
-  
+
   Filename: ChatInput.py
-  Created by: blach (4Oct14)
-  
+  Created by: blach (04Oct14)
+
 """
 from panda3d.core import *
 from direct.gui.DirectGui import *
@@ -172,7 +172,7 @@ class ChatInput(DirectObject, StateData.StateData):
             self.chatBx.setScale(1.2)
             self.chatBx.setPos(0.3, 0, -0.245)
             self.chatBx_close = DirectButton(text=('', 'Cancel', 'Cancel', ''), text_shadow=(0, 0, 0, 1), geom=(self.chat_btn_model.find('**/CloseBtn_UP'), self.chat_btn_model.find('**/CloseBtn_DN'), self.chat_btn_model.find('**/CloseBtn_Rllvr')), relief=None, text_scale=0.0525, text_pos=(0, -0.08), text_fg=(1, 1, 1, 1), parent=self.chatBx, pos=(-0.15, 0, -0.0875), scale=1.05, command=self.fsm.request, extraArgs=['idle'])
-            self.chatInput = DirectEntry(focus=1, cursorKeys=0, relief=None, geom=None, numLines=3, parent=self.chatBx, pos=(-0.2, 0, 0.11), scale=0.057, command=self.sendChat, width=8, initialText=key)
+            self.chatInput = DirectEntry(focus=1, cursorKeys=0, relief=None, geom=None, numLines=3, parent=self.chatBx, pos=(-0.2, 0, 0.11), scale=0.05, command=self.sendChat, width=8.6, initialText=key, backgroundFocus=0)
             self.chatBx_send = DirectButton(text=('', 'Say It', 'Say It', ''), text_shadow=(0, 0, 0, 1), geom=(self.chat_btn_model.find('**/ChtBx_ChtBtn_UP'), self.chat_btn_model.find('**/ChtBx_ChtBtn_DN'), self.chat_btn_model.find('**/ChtBx_ChtBtn_RLVR')), relief=None, text_scale=0.0525, text_pos=(0, -0.08), text_fg=(1, 1, 1, 1), parent=self.chatBx, scale=1.05, command=self.sendChat, pos=(0.18, 0, -0.0875), extraArgs=[self.chatInput.get()])
             self.chatBx_close.setBin('gui-popup', 60)
             self.chatBx_send.setBin('gui-popup', 60)
